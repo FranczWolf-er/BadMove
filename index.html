@@ -172,6 +172,7 @@ textarea{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border-ra
 .btn2{display:flex;flex-direction:column;gap:6px;align-items:stretch}
 .edit-on{outline:2px solid var(--tape);outline-offset:2px}
 .span2{grid-column:1/-1}
+#trCard,#prCard{scroll-margin-top:calc(70px + env(safe-area-inset-top))}
 .toast{background:var(--tape);color:var(--tape-ink);font-weight:700;border-radius:12px;padding:12px 14px}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);
   padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
@@ -917,10 +918,11 @@ function renderLib() {
     a.style.marginTop = '10px';
     const go = el('button', 'on', 'Zapsat do deníku'), ed = el('button', null, 'Upravit'), del = el('button', 'danger', 'Smazat');
     go.onclick = () => {
-      show('denik');
+      show('denik'); trReset();
       $('#tType').value = l.name; $('#tMin').value = l.min || ''; $('#tDate').value = TK;
       syncKm();
-      (l.km ? $('#tKm') : $('#tMin')).focus();
+      $('#trCard').scrollIntoView({ block: 'start' });   // formulář je pod plánem a přehledem, show() skočí nahoru
+      (l.km ? $('#tKm') : $('#tMin')).focus({ preventScroll: true });
     };
     ed.onclick = () => {
       libEdit = l.id;
