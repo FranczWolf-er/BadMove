@@ -381,7 +381,17 @@ const COACH_KEY = 'badmove-coach';
 let coach = 'badmove';
 try { coach = localStorage.getItem(COACH_KEY) === 'grznar' ? 'grznar' : 'badmove'; } catch (e) {}
 const QQ = k => coach === 'grznar' && k !== 'sick' ? QG[k] : Q[k];
-const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
+// náhodná hláška ze sady; při stejném stavu a seedu drží stejnou, nikdy dvakrát po sobě stejnou
+let lastQ = null, memo = {};
+try { lastQ = localStorage.getItem('badmove-lastq'); } catch (e) {}
+function pick(arr, seed) {
+  if (memo.arr === arr && memo.seed === seed) return memo.q;
+  const opts = arr.length > 1 ? arr.filter(x => x !== lastQ) : arr;
+  const q = opts[Math.floor(Math.random() * opts.length)];
+  memo = { arr, seed, q }; lastQ = q;
+  try { localStorage.setItem('badmove-lastq', q); } catch (e) {}
+  return q;
+}
 let seed = new Date().getDate(), quoteOverride = null;
 
 const dayRec = k => data.days.find(d => d.id === k);
