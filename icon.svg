@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#18203a"/>
+  <g transform="rotate(-8 256 256)">
+    <rect x="40" y="318" width="432" height="54" fill="#ffc61a"/>
+    <g fill="#18203a">
+      <polygon points="80,318 116,318 80,372 44,372"/><polygon points="170,318 206,318 170,372 134,372"/>
+      <polygon points="260,318 296,318 260,372 224,372"/><polygon points="350,318 386,318 350,372 314,372"/>
+      <polygon points="440,318 476,318 440,372 404,372"/>
+    </g>
+  </g>
+  <text x="256" y="268" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="200" fill="#ffc61a">BM</text>
+</svg>

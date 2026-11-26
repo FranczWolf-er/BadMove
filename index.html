@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BadMove</title>
+<meta name="theme-color" content="#18203a">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BadMove">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Jeden úzký sloupec, dole lišta se záložkami Dnes / Deník / Rekordy. Barvy: tmavě modrá a žlutá páska z tělocvičny. */
+:root{
+  --bg:#f3f4f8; --surface:#ffffff; --ink:#18203a; --muted:#646b82; --line:#dde0ea; --header:#18203a; --header-ink:#f3f4f8;
+  --tape:#ffc61a; --tape-ink:#18203a; --tape-soft:#ffe9a3; --sick:#6f8fd6; --sick-soft:#dfe7f8; --miss:#e7e8ee; --danger:#c94a4a; --warn:#b26b00;
+  --display:"Archivo Black","Arial Black",Impact,sans-serif; --body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#10142a; --surface:#1a2040; --ink:#eef0f8; --muted:#9aa1bb; --line:#2b3358; --header:#0b0e1f; --header-ink:#eef0f8;
+  --tape-soft:#5a4a17; --sick:#8aa6ea; --sick-soft:#27345e; --miss:#232a4c; --danger:#ef7b7b; --warn:#ffd98a; color-scheme:dark}}
+*{box-sizing:border-box}
+html{min-height:calc(100% + env(safe-area-inset-top));-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--header);color:var(--header-ink);display:flex;align-items:center;justify-content:space-between;
+  padding:max(12px,calc(env(safe-area-inset-top) + 6px)) max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left))}
+.logo{font-family:var(--display);font-weight:400;font-size:22px;margin:0;letter-spacing:-.01em}
+.logo span{background:var(--tape);color:var(--tape-ink);padding:0 5px;margin-left:2px}
+.hright{display:flex;align-items:center;gap:6px}
+.sync{font-size:12px;opacity:.75;white-space:nowrap}
+.sync.local,.sync.err{color:var(--tape);opacity:1}
+#gear{background:none;border:0;padding:6px;color:var(--header-ink);opacity:.8;display:flex}
+#gear.on{color:var(--tape);opacity:1}
+#gear svg{width:24px;height:24px}
+main{max-width:520px;margin:0 auto;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));display:flex;flex-direction:column;gap:22px}
+.view{display:flex;flex-direction:column;gap:22px}
+.stack{display:flex;flex-direction:column;gap:10px}
+h2{font-family:var(--display);font-weight:400;margin:0;font-size:15px;letter-spacing:.06em;text-transform:uppercase}
+.hidden,[hidden]{display:none!important}
+.banner{background:var(--tape-soft);border-radius:10px;padding:10px 12px;font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.hero{background:var(--ink);color:var(--bg);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-30px;top:18px;width:140px;height:22px;background:repeating-linear-gradient(-45deg,var(--tape) 0 14px,var(--ink) 14px 28px);transform:rotate(-8deg)}
+.streak{display:flex;align-items:baseline;gap:10px}
+.streak b{font-family:var(--display);font-weight:400;font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.streak small{font-size:14px;opacity:.8}
+.quote{font-size:17px;font-weight:600;line-height:1.35;max-width:32ch;min-height:2.7em}
+.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}
+.pill{border:1px solid color-mix(in srgb,var(--bg) 35%,transparent);border-radius:999px;padding:3px 10px}
+.pill.sick{background:var(--sick);border-color:var(--sick);color:#fff}
+.goal{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}
+.goal.full{border-color:var(--tape);box-shadow:inset 5px 0 0 var(--tape)}
+.goal.express{border-color:var(--tape);box-shadow:inset 5px 0 0 var(--tape-soft)}
+.goal .name{font-weight:600}
+.goal>div{min-width:0}
+.sub{font-size:12px;color:var(--muted)}
+.btns{display:flex;gap:6px}
+button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 12px;font-weight:600;font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--sick);outline-offset:2px}
+button:disabled{opacity:.5;cursor:default}
+button.on{background:var(--tape);border-color:var(--tape);color:var(--tape-ink)}
+button.soft.on{background:var(--tape-soft);border-color:var(--tape);color:var(--ink)}
+button.block{display:block;width:100%;padding:11px;background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.ghost{background:transparent}
+button.block.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.danger{border-color:var(--danger);color:var(--danger);background:transparent;padding:5px 10px;font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.sickrow{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--sick-soft);border-radius:12px;padding:12px 14px}
+.sickrow p{margin:0;font-size:13px}
+.sickrow button.on{background:var(--sick);border-color:var(--sick);color:#fff}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .h{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.cell{aspect-ratio:1;border-radius:7px;background:var(--miss);display:grid;place-items:center;font-size:11px;font-variant-numeric:tabular-nums;color:var(--muted);position:relative}
+.cell.full{background:var(--tape);color:var(--tape-ink);font-weight:700}
+.cell.express{background:repeating-linear-gradient(-45deg,var(--tape) 0 4px,var(--tape-soft) 4px 8px);color:var(--tape-ink);font-weight:700}
+.cell.sick{background:var(--sick);color:#fff}
+.cell.joker{background:transparent;border:2px dashed var(--tape);color:var(--ink);font-weight:700}
+.cell.none{background:transparent;border:1px solid var(--line);opacity:.5}
+.cell.today{outline:2px solid var(--ink);outline-offset:1px}
+.cell.trained::after{content:"";position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:var(--ink)}
+.cell.sick.trained::after{background:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card h3{margin:0 0 8px;font-size:16px}
+.card p.meta,.card .meta{display:block;font-size:13px;color:var(--muted);margin:0 0 10px}
+.meta.warn{color:var(--warn)}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-bottom:6px}
+details.card summary{font-weight:700;cursor:pointer}
+.erow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
+.erow span{min-width:0}
+form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+form .wide{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+input,select{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);min-width:0;width:100%}
+.note{font-size:12px;color:var(--muted);margin:0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-family:var(--display);font-weight:400;font-size:24px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.entry{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.entry:first-child{border-top:0;padding-top:2px}
+.entry .when{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:4.5em}
+.entry .what{font-weight:600;min-width:0}
+.entry .what small{display:block;font-weight:400;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px;background:var(--tape-soft);color:var(--ink);margin-right:6px}
+.tag.k{background:var(--tape);color:var(--tape-ink)}
+.tag.f{background:var(--sick-soft)}
+.pr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:baseline}
+.pr .ex{font-weight:700}
+.pr .best{font-family:var(--display);font-weight:400;font-size:28px;font-variant-numeric:tabular-nums;text-align:right}
+.pr .best small{font-family:var(--body);font-size:13px;font-weight:600;margin-left:3px}
+.hist{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.hist span{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.hist span.top{background:var(--tape);border-color:var(--tape);color:var(--tape-ink);font-weight:700}
+.toast{background:var(--tape);color:var(--tape-ink);font-weight:700;border-radius:12px;padding:12px 14px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);
+  padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+nav button{border:0;background:transparent;padding:10px 4px;font-size:14px;color:var(--muted)}
+nav button.on{color:var(--ink);background:var(--tape-soft)}
+@media (prefers-reduced-motion:no-preference){.goal{transition:box-shadow .2s,border-color .2s}}
+</style>
+</head>
+<body>
+<header>
+  <h1 class="logo">Bad<span>Move</span></h1>
+  <div class="hright"><span id="sync" class="sync" role="status"></span>
+    <button id="gear" aria-label="Nastavení" title="Nastavení"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <div id="upd" class="banner hidden">Je k dispozici nová verze aplikace. <button id="upd-btn">Obnovit</button></div>
+  <div id="login-bar" class="banner hidden">Přihlášení k OneDrive vypršelo, záloha čeká. <button id="login-btn">Přihlásit</button></div>
+  <div id="demo-bar" class="banner hidden">Koukáš na ukázková data. Do zálohy ani exportu se nedostanou. <button id="demo-del">Smazat ukázku</button></div>
+
+  <!-- DNES -->
+  <div class="view" id="v-dnes">
+    <section class="hero" aria-live="polite">
+      <div class="streak"><b id="streak">0</b><small id="streakLbl">dní v řadě</small></div>
+      <div class="quote" id="quote"></div>
+      <div class="meta" id="meta"></div>
+    </section>
+
+    <section class="stack">
+      <h2>Dnešní cíle</h2>
+      <div class="stack" id="goals"></div>
+      <p class="note">Plná verze, nebo expres. Obojí drží sérii. Den se počítá, když jsou hotové všechny cíle.</p>
+    </section>
+
+    <div class="sickrow">
+      <p><b>Marodka</b><br>Série se zastaví, nic se neztratí.</p>
+      <button id="sickBtn">Jsem nemocný</button>
+    </div>
+
+    <section class="stack">
+      <h2>Posledních 5 týdnů</h2>
+      <div class="cal" id="cal"></div>
+      <div class="legend">
+        <span><i style="background:var(--tape)"></i>Splněno</span>
+        <span><i style="background:repeating-linear-gradient(-45deg,var(--tape) 0 3px,var(--tape-soft) 3px 6px)"></i>Expres</span>
+        <span><i style="background:var(--sick)"></i>Marodka</span>
+        <span><i style="border:2px dashed var(--tape)"></i>Žolík</span>
+        <span><i style="background:var(--miss)"></i>Vynecháno</span>
+        <span><i style="background:var(--ink);border-radius:50%;width:7px;height:7px;vertical-align:1px"></i>Trénink</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- DENÍK -->
+  <div class="view hidden" id="v-denik">
+    <div class="stats" id="wkStats"></div>
+    <section class="card stack">
+      <h2>Zapsat trénink</h2>
+      <form id="addTr">
+        <label>Druh<select id="tType">
+          <option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Jiné</option>
+        </select></label>
+        <label>Datum<input id="tDate" type="date" required></label>
+        <label>Délka (min)<input id="tMin" type="number" min="1" max="600" inputmode="numeric" placeholder="60" required></label>
+        <label>Pocit<select id="tFeel"><option value="3">Dobrý</option><option value="4">Výborný</option><option value="2">Těžký</option><option value="1">Přežil jsem</option></select></label>
+        <label class="wide">Poznámka<input id="tNote" placeholder="Co se dělalo, sparing, kola…"></label>
+        <button class="block wide" type="submit">Uložit trénink</button>
+      </form>
+    </section>
+    <section class="stack">
+      <h2>Historie</h2>
+      <div class="card" id="trList"></div>
+    </section>
+  </div>
+
+  <!-- REKORDY -->
+  <div class="view hidden" id="v-rekordy">
+    <div class="toast hidden" id="prToast"></div>
+    <section class="card stack">
+      <h2>Nový výkon</h2>
+      <form id="addPr">
+        <label class="wide">Cvik<input id="pEx" list="exList" placeholder="Mrtvý tah" autocomplete="off" required></label>
+        <datalist id="exList"></datalist>
+        <label>Výkon<input id="pVal" type="number" step="0.5" min="0" inputmode="decimal" placeholder="60" required></label>
+        <label>Jednotka<select id="pUnit"><option>kg</option><option value="×">opakování v kuse</option><option value="s">sekund</option><option>km</option></select></label>
+        <label class="wide">Datum<input id="pDate" type="date" required></label>
+        <button class="block wide" type="submit">Uložit výkon</button>
+      </form>
+      <p class="note">Zapiš každý pokus, aplikace si sama pohlídá, který je osobák. Platí, že víc je lépe.</p>
+    </section>
+    <section class="stack">
+      <h2>Osobní rekordy</h2>
+      <div class="stack" id="prList"></div>
+    </section>
+  </div>
+
+  <!-- NASTAVENÍ -->
+  <div class="view hidden" id="v-nastaveni">
+    <section class="card">
+      <h3>Denní cíle</h3>
+      <div class="stack" id="editList"></div>
+      <form id="addGoal" style="margin-top:12px">
+        <label class="wide">Název<input id="gName" placeholder="Např. Švihadlo" required></label>
+        <label>Plná verze<input id="gFull" placeholder="5 min" required></label>
+        <label>Expres<input id="gExp" placeholder="1 min" required></label>
+        <button class="block wide" type="submit">Přidat cíl</button>
+      </form>
+      <p class="note" style="margin-top:8px">Odebraný cíl zmizí od dneška, starší dny zůstanou, jak byly.</p>
+    </section>
+    <section class="card">
+      <h3>Záloha na OneDrive</h3>
+      <div id="cloud"></div>
+    </section>
+    <section class="card">
+      <h3>Ukázková data</h3>
+      <p class="meta">Vyplní měsíc vzorové historie, pár tréninků a rekordů, ať je vidět, jak to vypadá. Tvoje data zůstanou beze změny.</p>
+      <button class="block ghost" id="demo-add">Vyplnit ukázková data</button>
+    </section>
+    <section class="card">
+      <h3>Export a import</h3>
+      <p class="meta">Export uloží všechna data do souboru JSON. Import záznamy přidá, nic nepřepíše.</p>
+      <button class="block" id="export">Uložit export (JSON)</button>
+      <label style="margin-top:12px">Import souboru JSON<input type="file" id="import" accept="application/json,.json"></label>
+    </section>
+    <p class="note">Ranní připomínku zatím nastavíš v iPhonu přes Zkratky, postup je v návodu v repozitáři (NAVOD.md).</p>
+  </div>
+</main>
+
+<nav>
+  <button data-tab="dnes" class="on">Dnes</button>
+  <button data-tab="denik">Deník</button>
+  <button data-tab="rekordy">Rekordy</button>
+</nav>
+
+<script src="config.js"></script>
+<script src="cloud.js"></script>
+<script>
+const KEY = 'badmove.v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const keyOf = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const fromKey = k => new Date(k + 'T12:00:00');
+const weekKey = d => keyOf(addDays(d, -((d.getDay() + 6) % 7)));
+const fmtShort = k => { const d = fromKey(k); return d.getDate() + '. ' + (d.getMonth() + 1) + '.'; };
+const fmtNum = v => String(v).replace('.', ',');
+const plural = (n, one, few, many) => n === 1 ? one : (n >= 2 && n <= 4 ? few : many);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+let today, TK;
+const setToday = () => { today = new Date(); today.setHours(12, 0, 0, 0); TK = keyOf(today); };
+setToday();
+
+/* ---------- data ---------- */
+const DEFAULT_GOALS = [
+  { id: 'g1', name: 'Ranní protažení', full: '10 min', exp: '2 min' },
+  { id: 'g2', name: 'Dřepy', full: '20×', exp: '5×' },
+  { id: 'g4', name: 'Kliky', full: '20×', exp: '5×' },
+  { id: 'g5', name: 'Břicho a záda', full: 'Plank 3× 45 s + superman 3× 12', exp: 'Plank 1× 30 s' },
+  { id: 'g3', name: 'Procházka', full: '20 min', exp: '5 min' }
+];
+let data;
+try { data = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { data = {}; }
+['goals', 'days', 'trainings', 'records'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+if (!data.tomb || typeof data.tomb !== 'object') data.tomb = {};
+if (!data.start) { data.start = TK; if (!data.goals.length) data.goals = DEFAULT_GOALS.map(g => ({ ...g })); }
+
+const Q = {
+  idle: ['Gauč tě miluje. Nenech se.', 'Protažení se samo neudělá. Zkoušeli jsme to.', 'Deset minut. Seriál má reklamy delší.', 'Tvoje záda volala. Chtějí se protáhnout.', 'Výmluvy nespalují kalorie.', 'Nikdo se nedívá. Proto je to tak snadné vynechat. Nevynechávej.', 'Ráno patří tobě, ne budíku s odloženým zvoněním.'],
+  partial: ['Rozjeto. Teď to nezabal v půlce.', 'Půlka je hotová. Druhá půlka se tváří, že o tobě neví.', 'Dobrý start. Gauč už znervózňuje.', 'Kliky na tebe čekají. Podlaha je stejně zadarmo.'],
+  done: ['Hotovo. Gauč pláče v koutě.', 'Dneska jsi lepší než včerejší výmluva.', 'Série roste. Lenost hledá nového majitele.', 'Splněno. Teď můžeš klidně předstírat, že to bylo snadné.'],
+  express: ['Expres se počítá. Žádná ostuda, jen chytrost.', 'Málo času, a stejně hotovo. To je ten trik.'],
+  sick: ['Uzdrav se. Série počká, my taky.', 'Dneska je tréninkem odpočinek. Pij čaj.', 'Tělo teď opravuje. Nepřekážej mu.'],
+  train: ['Trénink zapsaný. Pytel si to bude pamatovat.', 'Zapsáno. Budoucí ty ti děkuje.', 'Další cihla do zdi. Pokračuj.'],
+  pr: ['Nový osobák! Včerejší ty právě prohrál.', 'Rekord padl. Činky to nečekaly.', 'Osobák. Tohle si zarámuj.']
+};
+const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
+let seed = new Date().getDate(), quoteOverride = null;
+
+const dayRec = k => data.days.find(d => d.id === k);
+const goalActive = (g, k) => (!g.since || g.since <= k) && (!g.until || k < g.until);
+function dayState(k) {
+  const d = dayRec(k);
+  if (!d) return 'none';
+  if (d.sick) return 'sick';
+  const vals = data.goals.filter(g => goalActive(g, k)).map(g => d.goals && d.goals[g.id]);
+  if (vals.length && vals.every(Boolean)) return vals.includes('express') ? 'express' : 'full';
+  return vals.some(Boolean) ? 'partial' : 'none';
+}
+const hasDemo = () => data.days.some(d => d.demo) || data.trainings.some(t => t.demo) || data.records.some(r => r.demo);
+const effStart = () => data.days.filter(d => d.demo).reduce((m, d) => d.id < m ? d.id : m, data.start);
+function compute() {
+  const jokers = new Set(), used = {}, start = effStart();
+  let streak = 0, d = new Date(today);
+  const ts = dayState(TK);
+  if (ts !== 'full' && ts !== 'express' && ts !== 'sick') d = addDays(d, -1);
+  for (let i = 0; i < 2000; i++) {
+    const k = keyOf(d);
+    if (k < start) break;
+    const s = dayState(k);
+    if (s === 'full' || s === 'express') streak++;
+    else if (s !== 'sick') { const w = weekKey(d); if (!used[w]) { used[w] = 1; jokers.add(k); } else break; }
+    d = addDays(d, -1);
+  }
+  return { streak, jokers, jokerLeft: used[weekKey(today)] ? 0 : 1 };
+}
+
+/* ---------- Dnes ---------- */
+function renderToday() {
+  const { streak, jokers, jokerLeft } = compute();
+  const ts = dayState(TK), td = dayRec(TK) || { goals: {} };
+  $('#streak').textContent = streak;
+  $('#streakLbl').textContent = plural(streak, 'den v řadě', 'dny v řadě', 'dní v řadě');
+  const qset = ts === 'sick' ? Q.sick : ts === 'express' ? Q.express : ts === 'full' ? Q.done : ts === 'partial' ? Q.partial : Q.idle;
+  $('#quote').textContent = quoteOverride || pick(qset, seed);
+  quoteOverride = null;
+  const M = $('#meta'); M.innerHTML = '';
+  M.appendChild(el('span', 'pill', jokerLeft ? 'Žolík tento týden: 1' : 'Žolík tento týden: použitý'));
+  if (ts === 'sick') M.appendChild(el('span', 'pill sick', 'Marodka: série stojí'));
+
+  const G = $('#goals'); G.innerHTML = '';
+  data.goals.filter(g => goalActive(g, TK)).forEach(g => {
+    const v = td.goals && td.goals[g.id];
+    const row = el('div', 'goal' + (v ? ' ' + v : ''));
+    const left = el('div');
+    left.appendChild(el('div', 'name', g.name));
+    left.appendChild(el('div', 'sub', v === 'full' ? g.full + ' hotovo' : v === 'express' ? 'Expres ' + g.exp + ' hotový, počítá se' : g.full + ' · expres ' + g.exp));
+    const b = el('div', 'btns'), bf = el('button', null, 'Plně'), be = el('button', 'soft', 'Expres');
+    bf.classList.toggle('on', v === 'full'); be.classList.toggle('on', v === 'express');
+    bf.disabled = be.disabled = ts === 'sick';
+    bf.onclick = () => setGoal(g.id, 'full'); be.onclick = () => setGoal(g.id, 'express');
+    b.append(bf, be); row.append(left, b); G.appendChild(row);
+  });
+  G.style.opacity = ts === 'sick' ? .5 : 1;
+  $('#sickBtn').classList.toggle('on', ts === 'sick');
+  $('#sickBtn').textContent = ts === 'sick' ? 'Už je mi líp' : 'Jsem nemocný';
+
+  const trained = new Set(data.trainings.map(t => t.date)), start = effStart();
+  const C = $('#cal'); C.innerHTML = '';
+  ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'].forEach(h => C.appendChild(el('div', 'h', h)));
+  const first = addDays(fromKey(weekKey(today)), -28);
+  for (let i = 0; i < 35; i++) {
+    const d = addDays(first, i), k = keyOf(d);
+    let c = 'cell';
+    if (k > TK || (k < start && !trained.has(k))) c += ' none';
+    else { const s = dayState(k); if (s === 'full' || s === 'express' || s === 'sick') c += ' ' + s; else if (jokers.has(k)) c += ' joker'; }
+    if (k === TK) c += ' today';
+    if (trained.has(k) && k <= TK) c += ' trained';
+    const e = el('div', c, d.getDate()); e.title = k; C.appendChild(e);
+  }
+}
+function setGoal(id, v) {
+  let d = dayRec(TK);
+  if (!d) { d = { id: TK, goals: {} }; data.days.push(d); }
+  d.goals = Object.assign({}, d.goals);
+  if (d.goals[id] === v) delete d.goals[id]; else d.goals[id] = v;
+  seed++; save(); render();
+}
+$('#sickBtn').onclick = () => {
+  let d = dayRec(TK);
+  if (!d) { d = { id: TK, goals: {} }; data.days.push(d); }
+  d.sick = !d.sick; seed++; save(); render();
+};
+
+/* ---------- Deník ---------- */
+const FEEL = { 4: 'výborný', 3: 'dobrý', 2: 'těžký', 1: 'přežil jsem' };
+function renderLog() {
+  const wk = weekKey(today);
+  const thisW = data.trainings.filter(t => t.date >= wk && t.date <= TK);
+  const mins = thisW.reduce((a, t) => a + (+t.min || 0), 0);
+  const kb = thisW.filter(t => t.type === 'Kickbox').length;
+  const W = $('#wkStats'); W.innerHTML = '';
+  [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden'], [kb, 'kickbox tento týden']].forEach(([n, l]) => {
+    const s = el('div', 'stat'); s.append(el('b', null, n), el('span', null, l)); W.appendChild(s);
+  });
+  const L = $('#trList'); L.innerHTML = '';
+  const list = data.trainings.slice().sort((a, b) => b.date.localeCompare(a.date));
+  if (!list.length) { L.appendChild(el('p', 'note', 'Zatím nic. První zápis je nejtěžší, pak už to jede.')); return; }
+  list.forEach(t => {
+    const r = el('div', 'entry');
+    r.appendChild(el('div', 'when', fmtShort(t.date)));
+    const w = el('div', 'what');
+    w.appendChild(el('span', 'tag' + (t.type === 'Kickbox' ? ' k' : t.type === 'Funkční trénink' ? ' f' : ''), t.type));
+    w.appendChild(document.createTextNode(t.min + ' min'));
+    w.appendChild(el('small', null, 'Pocit: ' + (FEEL[t.feel] || 'dobrý') + (t.note ? ' · ' + t.note : '')));
+    const x = el('button', 'danger', 'Smazat');
+    x.onclick = () => { if (!confirm('Smazat trénink z ' + fmtShort(t.date) + '?')) return; data.trainings = data.trainings.filter(y => y.id !== t.id); save(); render(); };
+    r.append(w, x); L.appendChild(r);
+  });
+}
+$('#addTr').addEventListener('submit', e => {
+  e.preventDefault();
+  data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() });
+  $('#tMin').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
+  seed++; quoteOverride = pick(Q.train, seed); save(); render();
+});
+
+/* ---------- Rekordy ---------- */
+function renderPR() {
+  const by = {};
+  data.records.forEach(r => { (by[r.ex] = by[r.ex] || []).push(r); });
+  const dl = $('#exList'); dl.innerHTML = '';
+  [...new Set(Object.keys(by).concat(['Mrtvý tah', 'Shyby', 'Dřep s činkou', 'Bench press', 'Kliky', 'Plank']))].forEach(n => { const o = el('option'); o.value = n; dl.appendChild(o); });
+  const P = $('#prList'); P.innerHTML = '';
+  const last = n => by[n].reduce((m, r) => r.date > m ? r.date : m, '');
+  const names = Object.keys(by).sort((a, b) => last(b).localeCompare(last(a)));
+  if (!names.length) { P.appendChild(el('p', 'note', 'Zatím žádné rekordy. Zapiš první výkon a začni ho překonávat.')); return; }
+  names.forEach(n => {
+    const rs = by[n].slice().sort((a, b) => a.date.localeCompare(b.date));
+    const best = rs.reduce((m, r) => (!m || r.val > m.val) ? r : m, null);
+    const c = el('div', 'card pr');
+    c.appendChild(el('div', 'ex', n));
+    const b = el('div', 'best', fmtNum(best.val)); b.appendChild(el('small', null, best.unit)); c.appendChild(b);
+    const gain = best.val - rs[0].val;
+    c.appendChild(el('div', 'sub', 'Osobák z ' + fmtShort(best.date) + (gain > 0 ? ' · +' + fmtNum(+gain.toFixed(2)) + ' ' + best.unit + ' od prvního zápisu' : '')));
+    c.appendChild(el('div'));
+    const h = el('div', 'hist');
+    rs.forEach(r => {
+      const s = el('span', r === best ? 'top' : null, fmtShort(r.date) + ': ' + fmtNum(r.val) + ' ' + r.unit);
+      s.title = 'Klepnutím smažeš';
+      s.onclick = () => { if (!confirm('Smazat výkon ' + n + ' ' + fmtNum(r.val) + ' ' + r.unit + ' z ' + fmtShort(r.date) + '?')) return; data.records = data.records.filter(x => x.id !== r.id); save(); render(); };
+      h.appendChild(s);
+    });
+    c.appendChild(h); P.appendChild(c);
+  });
+}
+$('#addPr').addEventListener('submit', e => {
+  e.preventDefault();
+  const ex = $('#pEx').value.trim(), val = +$('#pVal').value, unit = $('#pUnit').value;
+  const prev = data.records.filter(r => r.ex.toLowerCase() === ex.toLowerCase());
+  const name = prev.length ? prev[0].ex : ex;
+  const prevBest = prev.reduce((m, r) => Math.max(m, r.val), -Infinity);
+  data.records.push({ id: uid(), ex: name, val, unit, date: $('#pDate').value || TK });
+  const T = $('#prToast');
+  if (!prev.length) T.textContent = 'Zapsáno. ' + name + ' má první laťku: ' + fmtNum(val) + ' ' + unit + '.';
+  else if (val > prevBest) { seed++; T.textContent = pick(Q.pr, seed) + ' ' + name + ': ' + fmtNum(val) + ' ' + unit + ' (dřív ' + fmtNum(prevBest) + ').'; }
+  else T.textContent = 'Zapsáno. Osobák zůstává ' + fmtNum(prevBest) + ' ' + unit + '. Příště.';
+  T.classList.remove('hidden');
+  $('#pVal').value = ''; $('#pDate').value = TK;
+  save(); render();
+});
+$('#pEx').addEventListener('change', () => {
+  const r = data.records.find(x => x.ex.toLowerCase() === $('#pEx').value.trim().toLowerCase());
+  if (r) $('#pUnit').value = r.unit;
+});
+
+/* ---------- Nastavení: cíle ---------- */
+function renderGoals() {
+  const E = $('#editList'); E.innerHTML = '';
+  const act = data.goals.filter(g => !g.until);
+  act.forEach(g => {
+    const r = el('div', 'erow');
+    r.appendChild(el('span', null, g.name + ' · ' + g.full + ' / expres ' + g.exp));
+    const x = el('button', 'danger', 'Odebrat');
+    x.disabled = act.length <= 1;
+    x.onclick = () => {
+      if (!confirm('Odebrat cíl ' + g.name + '?')) return;
+      if (g.since && g.since >= TK) data.goals = data.goals.filter(y => y.id !== g.id);   // přidaný dnes: rovnou pryč
+      else g.until = TK;
+      save(); render();
+    };
+    r.appendChild(x); E.appendChild(r);
+  });
+}
+$('#addGoal').addEventListener('submit', e => {
+  e.preventDefault();
+  data.goals.push({ id: uid(), name: $('#gName').value.trim(), full: $('#gFull').value.trim(), exp: $('#gExp').value.trim(), since: TK });
+  e.target.reset(); save(); render();
+});
+
+/* ---------- Ukázková data ---------- */
+function addDemo() {
+  const d = o => keyOf(addDays(today, -o));
+  const plan = { 30: 'f', 29: 'f', 28: 'm', 27: 'm', 26: 'f', 25: 'f', 24: 'e', 23: 'f', 22: 'f', 21: 'f', 20: 'e', 19: 'f', 18: 'm', 17: 'f', 16: 'f', 15: 'f', 14: 'f', 13: 'e', 12: 'f', 11: 'f', 10: 's', 9: 's', 8: 's', 7: 'f', 6: 'e', 5: 'f', 4: 'f', 3: 'm', 2: 'f', 1: 'e' };
+  const have = new Set(data.days.map(x => x.id));
+  const ids = data.goals.filter(g => !g.until).map(g => g.id);
+  Object.entries(plan).forEach(([off, t]) => {
+    const k = d(+off);
+    if (have.has(k)) return;
+    const goals = {};
+    if (t === 'm') goals[ids[0]] = 'full';
+    else if (t !== 's') ids.forEach((id, i) => goals[id] = (t === 'e' && i % 2 === 0) ? 'express' : 'full');
+    data.days.push({ id: k, demo: true, goals, ...(t === 's' ? { sick: true } : {}) });
+  });
+  [[1, 'Kickbox', 90, 4, 'Technika kopů, 5 kol sparingu'], [3, 'Funkční trénink', 60, 3, 'Kettlebell, burpees, farmer walk'], [6, 'Kickbox', 90, 2, 'Kondice na pytli'],
+   [8, 'Funkční trénink', 45, 3, ''], [13, 'Kickbox', 90, 3, 'Lapy ve dvojicích'], [15, 'Posilovna', 60, 4, 'Mrtvý tah, shyby, bench']]
+    .forEach(([o, type, min, feel, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, feel, note }));
+  [['Mrtvý tah', 50, 'kg', 40], ['Mrtvý tah', 55, 'kg', 15], ['Mrtvý tah', 60, 'kg', 4], ['Shyby', 6, '×', 30], ['Shyby', 8, '×', 5], ['Plank', 90, 's', 10]]
+    .forEach(([ex, val, unit, o]) => data.records.push({ id: uid(), demo: true, ex, val, unit, date: d(o) }));
+  save(); show('dnes'); render();
+}
+function removeDemo() {
+  if (!confirm('Smazat ukázková data? Tvoje vlastní záznamy zůstanou.')) return;
+  data.days = data.days.filter(x => !x.demo);
+  data.trainings = data.trainings.filter(x => !x.demo);
+  data.records = data.records.filter(x => !x.demo);
+  save(); render();
+}
+$('#demo-add').onclick = addDemo;
+$('#demo-del').onclick = removeDemo;
+
+/* ---------- Export a import ---------- */
+$('#export').onclick = async () => {
+  const nd = a => a.filter(x => !x.demo);
+  const out = { app: 'badmove', v: 1, start: data.start, goals: data.goals, days: nd(data.days), trainings: nd(data.trainings), records: nd(data.records) };
+  const name = 'badmove-' + TK + '.json';
+  const file = new File([JSON.stringify(out, null, 2)], name, { type: 'application/json' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#import').onchange = async ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  try {
+    const inc = JSON.parse(await f.text());
+    if (inc.app !== 'badmove') throw new Error('tohle není export z BadMove');
+    const cnt = {};
+    ['goals', 'days', 'trainings', 'records'].forEach(k => {
+      const have = new Set(data[k].map(x => x.id));
+      const add = (Array.isArray(inc[k]) ? inc[k] : []).filter(x => x && x.id && !have.has(x.id));
+      data[k].push(...add); cnt[k] = add.length;
+    });
+    if (inc.start && inc.start < data.start) data.start = inc.start;
+    save(); render();
+    alert('Přidáno dnů: ' + cnt.days + ', tréninků: ' + cnt.trainings + ', výkonů: ' + cnt.records + ', cílů: ' + cnt.goals + '.');
+  } catch (err) { alert('Import selhal: ' + err.message); }
+  ev.target.value = '';
+};
+
+/* ---------- navigace a vykreslení ---------- */
+let tab = 'dnes';
+function show(t) {
+  tab = t;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('#gear').classList.toggle('on', t === 'nastaveni');
+  ['dnes', 'denik', 'rekordy', 'nastaveni'].forEach(x => $('#v-' + x).classList.toggle('hidden', x !== t));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
+$('#gear').onclick = () => show(tab === 'nastaveni' ? 'dnes' : 'nastaveni');
+
+function render() {
+  if (keyOf(new Date()) !== TK) { setToday(); $('#tDate').value = TK; $('#pDate').value = TK; }
+  $('#demo-bar').classList.toggle('hidden', !hasDemo());
+  $('#demo-add').disabled = hasDemo();
+  renderToday(); renderLog(); renderPR(); renderGoals();
+}
+const rerender = render;   // volá cloud.js po sloučení se zálohou
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
+$('#tDate').value = TK; $('#pDate').value = TK;
+$('#tDate').max = TK; $('#pDate').max = TK;
+
+/* ---------- Aktualizace aplikace (service worker) ---------- */
+function swSetup() {
+  if (!('serviceWorker' in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  const offerReload = () => $('#upd').classList.remove('hidden');
+  $('#upd-btn').onclick = () => location.reload();
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const watch = w => {
+      if (!w) return;
+      w.addEventListener('statechange', () => { if ((w.state === 'installed' || w.state === 'activated') && hadController) offerReload(); });
+    };
+    if (reg.installing) watch(reg.installing);
+    reg.addEventListener('updatefound', () => watch(reg.installing));
+    const check = () => { try { reg.update(); } catch (e) {} };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(() => {});
+}
+swSetup();
+save();
+render();
+cloudStartup();
+</script>
+</body>
+</html>
