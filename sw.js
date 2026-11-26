@@ -1,7 +1,7 @@
 // Service worker: aplikace běží i offline.
 // Strategie „nejdřív síť“: online se vždy načte aktuální verze, mezipaměť slouží jen bez připojení.
 // Při každé změně souborů zvyšte číslo verze, aby zařízení zobrazila upozornění na novou verzi.
-const CACHE = 'badmove-v9';
+const CACHE = 'badmove-v10';
 const FILES = ['./', 'index.html', 'config.js', 'cloud.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
