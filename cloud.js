@@ -9,7 +9,7 @@
 
 const CFG = Object.assign({ clientId: '', tenant: 'common', googleClientId: '' }, window.BADMOVE_CONFIG || {});
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
-const COLS = ['goals', 'days', 'trainings', 'records', 'library'];
+const COLS = ['goals', 'days', 'trainings', 'records', 'library', 'plan'];
 const CUR_KEY = 'badmove.cloud', PEND_KEY = 'badmove.auth.pending', LAST_KEY = 'badmove.lastBackup',
       WAS_KEY = 'badmove.cloud.was', CHANGE_KEY = 'badmove.lastChange';
 const OD_AUTH = 'https://login.microsoftonline.com/' + CFG.tenant + '/oauth2/v2.0/';
@@ -70,7 +70,7 @@ const persistLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(data
 /* ---------- sloučení se zálohou ---------- */
 function cloudExport() {
   const nd = a => a.filter(x => !x.demo).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  return { app: 'badmove', v: 1, goals: nd(data.goals), days: nd(data.days), trainings: nd(data.trainings), records: nd(data.records), library: nd(data.library),
+  return { app: 'badmove', v: 1, goals: nd(data.goals), days: nd(data.days), trainings: nd(data.trainings), records: nd(data.records), library: nd(data.library), plan: nd(data.plan),
     start: data.start, prefsAt: data.prefsAt || 0, tomb: data.tomb };
 }
 // vrátí true, pokud se lokální data změnila
