@@ -118,8 +118,9 @@ input,select{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;borde
 .hist span{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .hist span.top{background:var(--tape);border-color:var(--tape);color:var(--tape-ink);font-weight:700}
 .lib h3{margin:0;font-size:16px}
-label.check{flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:10px}
-label.check input{width:22px;height:22px}
+.checks{display:flex;flex-direction:column;gap:6px;justify-content:center}
+label.check{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+label.check input{width:22px;height:22px;margin:0;flex:none}
 .lib .ex{white-space:pre-line;font-size:14px;margin:8px 0 10px;overflow-wrap:anywhere}
 textarea{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);width:100%;min-height:110px;resize:vertical}
 .toast{background:var(--tape);color:var(--tape-ink);font-weight:700;border-radius:12px;padding:12px 14px}
@@ -185,7 +186,7 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
         <label>Druh<select id="tType"></select></label>
         <label>Datum<input id="tDate" type="date" required></label>
         <label>Délka (min)<input id="tMin" type="number" min="1" max="600" inputmode="numeric" placeholder="60" required></label>
-        <label>Pocit<select id="tFeel"><option value="3">Dobrý</option><option value="4">Výborný</option><option value="2">Těžký</option><option value="1">Přežil jsem</option></select></label>
+        <label id="tKmWrap" class="hidden">Vzdálenost (km)<input id="tKm" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="5"></label>
         <label class="wide">Poznámka<input id="tNote" placeholder="Co se dělalo, sparing, kola…"></label>
         <button class="block wide" type="submit">Uložit trénink</button>
       </form>
@@ -224,7 +225,7 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
       <form id="libForm">
         <label class="wide">Název<input id="lName" placeholder="Např. Thajský box, Jóga, Plavání" required></label>
         <label>Obvyklá délka (min)<input id="lMin" type="number" min="1" max="600" inputmode="numeric" placeholder="nepovinné"></label>
-        <label class="check"><span>Regenerační</span><input id="lRegen" type="checkbox"></label>
+        <div class="checks"><label class="check"><input id="lRegen" type="checkbox"><span>Regenerační</span></label><label class="check"><input id="lKm" type="checkbox"><span>S kilometry</span></label></div>
         <label class="wide">Popis, cviky, postup<textarea id="lEx" placeholder="Nepovinné. Např.:&#10;Rozcvička 10 min&#10;5 kol: 20 kopů, 20 úderů, 10 kliků"></textarea></label>
         <button class="block wide" type="submit" id="libSave">Přidat druh</button>
         <button class="block ghost wide hidden" type="button" id="libCancel">Zrušit úpravu</button>
@@ -310,11 +311,13 @@ try { data = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { data = {
 if (!data.tomb || typeof data.tomb !== 'object') data.tomb = {};
 const DEFAULT_TYPES = [
   { id: 'ty-kickbox', name: 'Kickbox' }, { id: 'ty-funkcni', name: 'Funkční trénink' }, { id: 'ty-posilovna', name: 'Posilovna' },
-  { id: 'ty-beh', name: 'Běh' }, { id: 'ty-regenerace', name: 'Regenerace', regen: true }, { id: 'ty-jine', name: 'Jiné' }
+  { id: 'ty-beh', name: 'Běh', km: true }, { id: 'ty-prochazka', name: 'Procházka', km: true }, { id: 'ty-regenerace', name: 'Regenerace', regen: true }, { id: 'ty-jine', name: 'Jiné' }
 ];
 // verze 4 měla v knihovně šablony tréninků (s polem type): převést na druhy
 data.library = data.library.map(l => l.type ? (({ type, ...rest }) => Object.assign(rest, type === 'Regenerace' ? { regen: true } : {}))(l) : l);
-if (!data.typesSeeded) { DEFAULT_TYPES.forEach(t => { if (!data.library.some(x => x.id === t.id || x.name === t.name)) data.library.push({ ...t }); }); data.typesSeeded = 1; }
+if (!data.typesSeeded) { DEFAULT_TYPES.forEach(t => { if (!data.library.some(x => x.id === t.id || x.name === t.name)) data.library.push({ ...t }); }); data.typesSeeded = 2; }
+// verze 5: běh a procházka s kilometry
+if (data.typesSeeded < 2) { const b = data.library.find(x => x.id === 'ty-beh'); if (b) b.km = true; if (!data.library.some(x => x.id === 'ty-prochazka' || x.name === 'Procházka')) data.library.push({ id: 'ty-prochazka', name: 'Procházka', km: true }); data.typesSeeded = 2; }
 if (!data.start) { data.start = TK; if (!data.goals.length) data.goals = DEFAULT_GOALS.map(g => ({ ...g })); }
 
 const Q = {
@@ -423,14 +426,18 @@ function fillTypeSelect() {
   data.library.slice().sort((a, b) => a.name.localeCompare(b.name, 'cs')).forEach(l => { const o = el('option', null, l.name); sel.appendChild(o); });
   if (cur && typeByName(cur)) sel.value = cur;
 }
-const FEEL = { 4: 'výborný', 3: 'dobrý', 2: 'těžký', 1: 'přežil jsem' };
+const hasKm = n => { const t = typeByName(n); return t ? !!t.km : (n === 'Běh' || n === 'Procházka'); };
+const fmtKm = v => fmtNum(Math.round(v * 10) / 10);
+function syncKm() { const on = hasKm($('#tType').value); $('#tKmWrap').classList.toggle('hidden', !on); if (!on) $('#tKm').value = ''; }
+$('#tType').addEventListener('change', syncKm);
 function renderLog() {
   const wk = weekKey(today);
   const thisW = data.trainings.filter(t => t.date >= wk && t.date <= TK);
   const mins = thisW.reduce((a, t) => a + (+t.min || 0), 0);
+  const km = thisW.reduce((a, t) => a + (+t.km || 0), 0);
   const regen = thisW.filter(t => isRegen(t.type)), regenMin = regen.reduce((a, t) => a + (+t.min || 0), 0);
   const W = $('#wkStats'); W.innerHTML = '';
-  [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden'], [regen.length, (regen.length === 1 ? 'regenerace' : 'regenerací') + ' · ' + regenMin + ' min']].forEach(([n, l]) => {
+  [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden' + (km ? ' · ' + fmtKm(km) + ' km' : '')], [regen.length, (regen.length === 1 ? 'regenerace' : 'regenerací') + ' · ' + regenMin + ' min']].forEach(([n, l]) => {
     const s = el('div', 'stat'); s.append(el('b', null, n), el('span', null, l)); W.appendChild(s);
   });
   const L = $('#trList'); L.innerHTML = '';
@@ -441,8 +448,8 @@ function renderLog() {
     r.appendChild(el('div', 'when', fmtShort(t.date)));
     const w = el('div', 'what');
     w.appendChild(el('span', 'tag' + (isRegen(t.type) ? ' r' : ''), t.type));
-    w.appendChild(document.createTextNode(t.min + ' min'));
-    w.appendChild(el('small', null, 'Pocit: ' + (FEEL[t.feel] || 'dobrý') + (t.note ? ' · ' + t.note : '')));
+    w.appendChild(document.createTextNode(t.min + ' min' + (t.km ? ' · ' + fmtKm(t.km) + ' km' : '')));
+    if (t.note) w.appendChild(el('small', null, t.note));
     const x = el('button', 'danger', 'Smazat');
     x.onclick = () => { if (!confirm('Smazat trénink z ' + fmtShort(t.date) + '?')) return; data.trainings = data.trainings.filter(y => y.id !== t.id); save(); render(); };
     r.append(w, x); L.appendChild(r);
@@ -450,8 +457,8 @@ function renderLog() {
 }
 $('#addTr').addEventListener('submit', e => {
   e.preventDefault();
-  data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() });
-  $('#tMin').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
+  data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, note: $('#tNote').value.trim(), ...(hasKm($('#tType').value) && +$('#tKm').value ? { km: +$('#tKm').value } : {}) });
+  $('#tMin').value = ''; $('#tKm').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
   seed++; quoteOverride = pick(Q.train, seed); save(); render();
 });
 
@@ -517,7 +524,9 @@ function renderLib() {
     const used = data.trainings.filter(t => t.type === l.name).length;
     const m = el('div', 'sub');
     if (l.regen) m.appendChild(el('span', 'tag r', 'regenerace'));
-    m.appendChild(document.createTextNode([l.min ? l.min + ' min' : '', used ? 'zapsáno ' + used + '×' : 'zatím nezapsáno'].filter(Boolean).join(' · ')));
+    if (l.km) m.appendChild(el('span', 'tag', 'km'));
+    const kmSum = l.km ? data.trainings.filter(t => t.type === l.name).reduce((a, t) => a + (+t.km || 0), 0) : 0;
+    m.appendChild(document.createTextNode([l.min ? l.min + ' min' : '', used ? 'zapsáno ' + used + '×' : 'zatím nezapsáno', kmSum ? 'celkem ' + fmtKm(kmSum) + ' km' : ''].filter(Boolean).join(' · ')));
     c.appendChild(m);
     if (l.ex) c.appendChild(el('div', 'ex', l.ex));
     const a = el('div', 'actions');
@@ -526,11 +535,12 @@ function renderLib() {
     go.onclick = () => {
       show('denik');
       $('#tType').value = l.name; $('#tMin').value = l.min || ''; $('#tDate').value = TK;
-      (l.min ? $('#tFeel') : $('#tMin')).focus();
+      syncKm();
+      (l.km ? $('#tKm') : $('#tMin')).focus();
     };
     ed.onclick = () => {
       libEdit = l.id;
-      $('#lName').value = l.name; $('#lMin').value = l.min || ''; $('#lRegen').checked = !!l.regen; $('#lEx').value = l.ex || '';
+      $('#lName').value = l.name; $('#lMin').value = l.min || ''; $('#lRegen').checked = !!l.regen; $('#lKm').checked = !!l.km; $('#lEx').value = l.ex || '';
       $('#libTitle').textContent = 'Upravit druh'; $('#libSave').textContent = 'Uložit změny'; $('#libCancel').classList.remove('hidden');
       window.scrollTo(0, 0);
     };
@@ -548,7 +558,7 @@ $('#libForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = $('#lName').value.trim();
   if (data.library.some(x => x.id !== libEdit && x.name.toLowerCase() === name.toLowerCase())) { alert('Druh ' + name + ' už v knihovně je.'); return; }
-  const rec = { name, min: +$('#lMin').value || 0, regen: $('#lRegen').checked, ex: $('#lEx').value.trim() };
+  const rec = { name, min: +$('#lMin').value || 0, regen: $('#lRegen').checked, km: $('#lKm').checked, ex: $('#lEx').value.trim() };
   if (libEdit) {
     const old = data.library.find(x => x.id === libEdit);
     if (old && old.name !== name) data.trainings.forEach(t => { if (t.type === old.name) t.type = name; });   // přejmenování i v deníku
@@ -596,8 +606,8 @@ function addDemo() {
     data.days.push({ id: k, demo: true, goals, ...(t === 's' ? { sick: true } : {}) });
   });
   [[1, 'Kickbox', 90, 4, 'Technika kopů, 5 kol sparingu'], [3, 'Funkční trénink', 60, 3, 'Kettlebell, burpees, farmer walk'], [6, 'Kickbox', 90, 2, 'Kondice na pytli'],
-   [8, 'Funkční trénink', 45, 3, ''], [2, 'Regenerace', 30, 4, 'Jóga a válec'], [7, 'Regenerace', 40, 3, 'Sauna, protažení'], [13, 'Kickbox', 90, 3, 'Lapy ve dvojicích'], [15, 'Posilovna', 60, 4, 'Mrtvý tah, shyby, bench']]
-    .forEach(([o, type, min, feel, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, feel, note }));
+   [8, 'Funkční trénink', 45, 3, ''], [4, 'Běh', 32, 5.2, ''], [9, 'Běh', 40, 6.4, 'Lesem'], [0, 'Procházka', 50, 4.1, 'Se psem'], [2, 'Regenerace', 30, 4, 'Jóga a válec'], [7, 'Regenerace', 40, 3, 'Sauna, protažení'], [13, 'Kickbox', 90, 3, 'Lapy ve dvojicích'], [15, 'Posilovna', 60, 4, 'Mrtvý tah, shyby, bench']]
+    .forEach(([o, type, min, x, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, note, ...(hasKm(type) ? { km: x } : {}) }));
   [['Mrtvý tah', 50, 'kg', 40], ['Mrtvý tah', 55, 'kg', 15], ['Mrtvý tah', 60, 'kg', 4], ['Shyby', 6, '×', 30], ['Shyby', 8, '×', 5], ['Plank', 90, 's', 10]]
     .forEach(([ex, val, unit, o]) => data.records.push({ id: uid(), demo: true, ex, val, unit, date: d(o) }));
   save(); show('dnes'); render();
@@ -658,7 +668,7 @@ function render() {
   if (keyOf(new Date()) !== TK) { setToday(); $('#tDate').value = TK; $('#pDate').value = TK; }
   $('#demo-bar').classList.toggle('hidden', !hasDemo());
   $('#demo-add').disabled = hasDemo();
-  renderToday(); renderLog(); renderPR(); renderLib(); renderGoals();
+  renderToday(); renderLog(); renderPR(); renderLib(); renderGoals(); syncKm();
 }
 const rerender = render;   // volá cloud.js po sloučení se zálohou
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
