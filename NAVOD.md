@@ -1,4 +1,4 @@
-# BadMove – nasazení, záloha a připomínka
+# BadMove – nasazení, záloha (OneDrive, Google Disk) a připomínka
 
 ## 1. GitHub Pages
 Repozitář `BadMove` → Settings → Pages → Source: *Deploy from a branch*, větev `main`, složka `/ (root)` → Save.
@@ -20,6 +20,25 @@ Aplikace má vlastní registraci **BadMove** v Microsoft Entra (client ID je v `
 
 Dokud `clientId` chybí, záloha je vypnutá a data se dají uložit exportem (⚙ → Uložit export).
 
+## 3b. Záloha na Google Disk (jednorázově)
+Pro uživatele s účtem Google. Záloha leží ve skrytých datech aplikace na Disku Google (v Disku ji neuvidíš, aplikace nevidí nic jiného).
+1. Otevři https://console.cloud.google.com a vytvoř nový projekt `BadMove`.
+2. **APIs & Services → Library** → vyhledej **Google Drive API** → **Enable**.
+3. **Google Auth Platform** (dříve OAuth consent screen) → **Get started**: název aplikace `BadMove`, e-mail podpory,
+   Audience **External**, kontaktní e-mail → Create.
+4. **Data Access** → Add or remove scopes → přidej `.../auth/drive.appdata` → Update → Save.
+5. **Audience → Test users** → přidej svůj účet Google a účty kamarádů, kteří budou zálohovat (v testovacím režimu až 100).
+6. **Clients → Create client** → typ **Web application**, název `BadMove`:
+   - Authorized JavaScript origins: `https://franczwolf-er.github.io`
+   - Authorized redirect URIs: `https://franczwolf-er.github.io/BadMove/`
+   → Create a zkopíruj **Client ID** (končí na `.apps.googleusercontent.com`).
+7. Vlož ho do `config.js` (`googleClientId: '…'`), zvyš verzi v `sw.js` a ulož (commit).
+8. V aplikaci: ⚙ → **Připojit Google Disk** → vyber účet a potvrď oprávnění.
+
+Přihlášení ke Google vydrží asi hodinu. Pak se nahoře ukáže „Přihlášení vypršelo“ a klepnutí na **Přihlásit**
+ho obnoví (obvykle bez hesla). Změny mezitím zůstávají v zařízení a zazálohují se po přihlášení.
+Zálohuje se vždy do jednoho úložiště. Přepnout jde odpojením a připojením druhého, data se sloučí.
+
 ## 4. Ranní připomínka přes Zkratky (iPhone)
 Webová aplikace zatím sama připomínky neposílá. Do té doby to zvládne iPhone:
 1. Aplikace **Zkratky** → Automatizace → **+** → **Denní čas** → např. 7:00, opakovat denně → **Spustit okamžitě**.
@@ -29,4 +48,6 @@ Webová aplikace zatím sama připomínky neposílá. Do té doby to zvládne iP
 ## Když něco nejde
 - `AADSTS50011` (redirect URI): adresa v registraci se musí přesně shodovat s adresou aplikace, včetně `/BadMove/`.
 - `AADSTS700016` / neplatný client ID: zkontroluj `config.js`.
+- Google `redirect_uri_mismatch`: adresa v Authorized redirect URIs se musí přesně shodovat, včetně `/BadMove/`.
+- Google `access_denied` / „aplikace není ověřená“: přidej účet mezi Test users (krok 3b.5).
 - Nová verze se nenačítá: zvyš číslo `CACHE` v `sw.js`, aplikace pak nahoře nabídne **Obnovit**.

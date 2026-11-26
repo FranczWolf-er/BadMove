@@ -1,19 +1,22 @@
-/* ---------- Záloha na OneDrive (Microsoft Graph, přihlášení PKCE) ----------
-   Princip jako v BadGuns: hlavní jsou data v zařízení, záloha je soubor
-   Apps/<aplikace>/badmove-backup.json. Synchronizace slučuje oba směry:
+/* ---------- Záloha do cloudu: OneDrive (Microsoft Graph, PKCE) a Google Disk (appDataFolder) ----------
+   Princip jako v BadGuns a BadCars: hlavní jsou data v zařízení, záloha je soubor badmove-backup.json
+   ve složce aplikace (OneDrive: Apps/BadMove, Google Disk: skrytá data aplikace).
+   Zálohuje se vždy do jednoho připojeného úložiště. Synchronizace slučuje oba směry:
    - každý záznam nese updatedAt (nastavuje se automaticky při uložení),
    - smazané záznamy se pamatují v data.tomb (id → čas smazání), aby se ze zálohy nevracely,
    - datum začátku (start) se slučuje na to dřívější.
    Ukázková data (demo) se nezálohují. */
 
-const CFG = Object.assign({ clientId: '', tenant: 'common' }, window.BADMOVE_CONFIG || {});
+const CFG = Object.assign({ clientId: '', tenant: 'common', googleClientId: '' }, window.BADMOVE_CONFIG || {});
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
 const COLS = ['goals', 'days', 'trainings', 'records', 'library'];
-const TOK_KEY = 'badmove.tok.onedrive', PEND_KEY = 'badmove.auth.pending', LAST_KEY = 'badmove.lastBackup',
+const CUR_KEY = 'badmove.cloud', PEND_KEY = 'badmove.auth.pending', LAST_KEY = 'badmove.lastBackup',
       WAS_KEY = 'badmove.cloud.was', CHANGE_KEY = 'badmove.lastChange';
 const OD_AUTH = 'https://login.microsoftonline.com/' + CFG.tenant + '/oauth2/v2.0/';
 const OD_SCOPE = 'Files.ReadWrite.AppFolder offline_access';
 const OD_FILE = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/badmove-backup.json';
+const GD_SCOPE = 'https://www.googleapis.com/auth/drive.appdata', GD_API = 'https://www.googleapis.com/drive/v3/files',
+      GD_UP = 'https://www.googleapis.com/upload/drive/v3/files', GD_NAME = 'badmove-backup.json';
 
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -25,9 +28,15 @@ async function s256(s) {
   return btoa(String.fromCharCode.apply(null, new Uint8Array(d))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 const authErr = () => { const e = new Error('auth'); e.auth = true; return e; };
+const conflictErr = () => { const e = new Error('conflict'); e.conflict = true; return e; };
 // token patří ke konkrétní registraci; po změně client ID se starý zahodí a je potřeba se přihlásit znovu
-const getTok = () => { try { const t = JSON.parse(lsGet(TOK_KEY)); return t && t.cid === CFG.clientId ? t : null; } catch (e) { return null; } };
-const setTok = t => lsSet(TOK_KEY, JSON.stringify(Object.assign({ cid: CFG.clientId }, t)));
+const tokKey = p => 'badmove.tok.' + p;
+const cidOf = p => p === 'gdrive' ? CFG.googleClientId : CFG.clientId;
+const getTok = p => { try { const t = JSON.parse(lsGet(tokKey(p))); return t && t.cid === cidOf(p) ? t : null; } catch (e) { return null; } };
+const setTok = (p, t) => lsSet(tokKey(p), JSON.stringify(Object.assign({ cid: cidOf(p) }, t)));
+// starší verze uměla jen OneDrive bez volby úložiště
+if (getTok('onedrive') && !lsGet(CUR_KEY)) lsSet(CUR_KEY, 'onedrive');
+if (lsGet(WAS_KEY) === '1') lsSet(WAS_KEY, 'onedrive');
 
 /* ---------- razítka změn a smazání ---------- */
 let snap = new Map(), snapPrefs = '';
@@ -87,74 +96,134 @@ function mergeIn(rem) {
   return JSON.stringify(cloudExport()) !== before;
 }
 
-/* ---------- OneDrive ---------- */
+/* ---------- úložiště ---------- */
 async function odTokenReq(params) {
   const r = await withTimeout(fetch(OD_AUTH + 'token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params).toString() }), 15000);
   const j = await r.json();
   if (!r.ok || !j.access_token) throw new Error(j.error_description || j.error || 'token');
-  const old = getTok() || {};
-  setTok({ access: j.access_token, refresh: j.refresh_token || old.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 });
+  const old = getTok('onedrive') || {};
+  setTok('onedrive', { access: j.access_token, refresh: j.refresh_token || old.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 });
 }
-const OD = {
-  configured: () => !!CFG.clientId,
-  async login() {
-    const ver = rand(32), st = rand(8);
-    lsSet(PEND_KEY, JSON.stringify({ ver, st }));
-    location.href = OD_AUTH + 'authorize?' + new URLSearchParams({ client_id: CFG.clientId, response_type: 'code', redirect_uri: REDIRECT,
-      response_mode: 'query', scope: OD_SCOPE, state: st, code_challenge: await s256(ver), code_challenge_method: 'S256', prompt: 'select_account' });
+async function cfetch(p, url, opt) {
+  const tok = await PROV[p].token();
+  if (!tok) throw authErr();
+  opt = opt || {};
+  opt.headers = Object.assign({ Authorization: 'Bearer ' + tok }, opt.headers || {});
+  const r = await withTimeout(fetch(url, opt), 20000);
+  if (r.status === 401) { lsDel(tokKey(p)); throw authErr(); }
+  return r;
+}
+const PROV = {
+  onedrive: {
+    name: 'OneDrive', where: 'složka Apps/BadMove na OneDrive',
+    configured: () => !!CFG.clientId,
+    async login() {
+      const ver = rand(32), st = rand(8);
+      lsSet(PEND_KEY, JSON.stringify({ p: 'onedrive', ver, st }));
+      location.href = OD_AUTH + 'authorize?' + new URLSearchParams({ client_id: CFG.clientId, response_type: 'code', redirect_uri: REDIRECT,
+        response_mode: 'query', scope: OD_SCOPE, state: st, code_challenge: await s256(ver), code_challenge_method: 'S256', prompt: 'select_account' });
+    },
+    async finish(pend, q) {
+      if (q.has('error')) throw new Error(q.get('error_description') || q.get('error'));
+      if (!q.has('code')) return false;
+      if (pend.st !== q.get('state')) throw new Error('neplatný stav');
+      await odTokenReq({ client_id: CFG.clientId, grant_type: 'authorization_code', code: q.get('code'), redirect_uri: REDIRECT, code_verifier: pend.ver, scope: OD_SCOPE });
+      return true;
+    },
+    async token() {
+      const t = getTok('onedrive');
+      if (!t) return null;
+      if (t.exp > Date.now() + 60000) return t.access;
+      if (!t.refresh) return null;
+      try { await odTokenReq({ client_id: CFG.clientId, grant_type: 'refresh_token', refresh_token: t.refresh, scope: OD_SCOPE }); return getTok('onedrive').access; }
+      catch (e) { lsDel(tokKey('onedrive')); return null; }
+    },
+    async read() {
+      const m = await cfetch('onedrive', OD_FILE);
+      if (m.status === 404) return { data: null, etag: null };
+      if (!m.ok) throw new Error('OneDrive ' + m.status);
+      const meta = await m.json(), c = await cfetch('onedrive', OD_FILE + ':/content');
+      if (!c.ok) throw new Error('OneDrive ' + c.status);
+      return { data: JSON.parse(await c.text()), etag: meta.eTag || null };
+    },
+    async write(text, etag) {
+      const h = { 'Content-Type': 'application/json' };
+      if (etag) h['If-Match'] = etag;
+      const r = await cfetch('onedrive', OD_FILE + ':/content?@microsoft.graph.conflictBehavior=replace', { method: 'PUT', headers: h, body: text });
+      if (r.status === 412) throw conflictErr();
+      if (!r.ok) throw new Error('OneDrive ' + r.status);
+    }
   },
-  async token() {
-    const t = getTok();
-    if (!t) return null;
-    if (t.exp > Date.now() + 60000) return t.access;
-    if (!t.refresh) return null;
-    try { await odTokenReq({ client_id: CFG.clientId, grant_type: 'refresh_token', refresh_token: t.refresh, scope: OD_SCOPE }); return getTok().access; }
-    catch (e) { lsDel(TOK_KEY); return null; }
-  },
-  async fetch(url, opt) {
-    const tok = await this.token();
-    if (!tok) throw authErr();
-    opt = opt || {};
-    opt.headers = Object.assign({ Authorization: 'Bearer ' + tok }, opt.headers || {});
-    const r = await withTimeout(fetch(url, opt), 20000);
-    if (r.status === 401) { lsDel(TOK_KEY); throw authErr(); }
-    return r;
-  },
-  async read() {
-    const m = await this.fetch(OD_FILE);
-    if (m.status === 404) return { data: null, etag: null };
-    if (!m.ok) throw new Error('OneDrive ' + m.status);
-    const meta = await m.json(), c = await this.fetch(OD_FILE + ':/content');
-    if (!c.ok) throw new Error('OneDrive ' + c.status);
-    return { data: JSON.parse(await c.text()), etag: meta.eTag || null };
-  },
-  async write(text, etag) {
-    const h = { 'Content-Type': 'application/json' };
-    if (etag) h['If-Match'] = etag;
-    const r = await this.fetch(OD_FILE + ':/content?@microsoft.graph.conflictBehavior=replace', { method: 'PUT', headers: h, body: text });
-    if (r.status === 412) { const e = new Error('conflict'); e.conflict = true; throw e; }
-    if (!r.ok) throw new Error('OneDrive ' + r.status);
+  gdrive: {
+    name: 'Google Disk', where: 'skrytá data aplikace na Google Disku',
+    configured: () => !!CFG.googleClientId,
+    // implicitní tok OAuth: token platí asi hodinu, pak je potřeba se znovu přihlásit (obvykle bez hesla)
+    async login() {
+      const st = rand(8);
+      lsSet(PEND_KEY, JSON.stringify({ p: 'gdrive', st }));
+      location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({ client_id: CFG.googleClientId, redirect_uri: REDIRECT,
+        response_type: 'token', scope: GD_SCOPE, state: st, include_granted_scopes: 'true' });
+    },
+    async finish(pend, q, h) {
+      if (h.has('error')) throw new Error(h.get('error'));
+      if (!h.has('access_token')) return false;
+      if (pend.st !== h.get('state')) throw new Error('neplatný stav');
+      setTok('gdrive', { access: h.get('access_token'), exp: Date.now() + (+h.get('expires_in') || 3600) * 1000 });
+      return true;
+    },
+    async token() { const t = getTok('gdrive'); return t && t.exp > Date.now() + 60000 ? t.access : null; },
+    async fileMeta() {
+      const r = await cfetch('gdrive', GD_API + '?' + new URLSearchParams({ spaces: 'appDataFolder', q: "name='" + GD_NAME + "' and trashed=false", fields: 'files(id,version)', pageSize: '10' }));
+      if (!r.ok) throw new Error('Google Disk ' + r.status);
+      const j = await r.json();
+      return (j.files || [])[0] || null;
+    },
+    async read() {
+      const f = await this.fileMeta();
+      if (!f) return { data: null, etag: null };
+      const c = await cfetch('gdrive', GD_API + '/' + f.id + '?alt=media');
+      if (!c.ok) throw new Error('Google Disk ' + c.status);
+      return { data: JSON.parse(await c.text()), etag: f.id + '@' + f.version };
+    },
+    async write(text, etag) {
+      if (etag) {
+        const f = await this.fileMeta();
+        if (!f || f.id + '@' + f.version !== etag) throw conflictErr();
+        const r = await cfetch('gdrive', GD_UP + '/' + f.id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: text });
+        if (!r.ok) throw new Error('Google Disk ' + r.status);
+        return;
+      }
+      if (await this.fileMeta()) throw conflictErr();
+      const bd = 'bm' + rand(8);
+      const body = '--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: GD_NAME, parents: ['appDataFolder'] }) +
+        '\r\n--' + bd + '\r\nContent-Type: application/json\r\n\r\n' + text + '\r\n--' + bd + '--';
+      const r = await cfetch('gdrive', GD_UP + '?uploadType=multipart', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + bd }, body });
+      if (!r.ok) throw new Error('Google Disk ' + r.status);
+    }
   }
 };
+const provList = () => Object.keys(PROV).filter(k => PROV[k].configured());
+const curProv = () => { const p = lsGet(CUR_KEY); return p && PROV[p] && PROV[p].configured() ? p : null; };
+const pname = () => { const p = curProv() || lsGet(WAS_KEY); return p && PROV[p] ? PROV[p].name : 'cloudu'; };
 
 /* ---------- stav a synchronizace ---------- */
 let cloud = false, syncSt = 'local', pushT = null, pushing = false, again = false, cloudMsg = '', loginNeeded = false;
-const signedIn = () => !!getTok();
+const signedIn = () => { const p = curProv(); return !!(p && getTok(p)); };
 const lastBackup = () => +(lsGet(LAST_KEY) || 0);
-const SYNC_LABEL = { local: '⚠ jen v zařízení', ok: '☁ OneDrive', busy: '⟳ zálohuji…', err: '⚠ záloha selhala', off: '' };
+const syncLabel = st => ({ local: '⚠ jen v zařízení', ok: '☁ ' + pname(), busy: '⟳ zálohuji…', err: '⚠ záloha selhala', off: '' })[st];
 function setSync(st) {
   syncSt = st;
   const e = $('#sync');
-  if (e) { e.textContent = SYNC_LABEL[st]; e.className = 'sync ' + st; }
+  if (e) { e.textContent = syncLabel(st); e.className = 'sync ' + st; }
   renderCloudPanel();
 }
 
 async function syncOnce() {
-  const rem = await OD.read();
+  const P = PROV[curProv()], rem = await P.read();
   if (mergeIn(rem.data)) rerender();
   const text = JSON.stringify(cloudExport());
   if (rem.data && JSON.stringify(rem.data) === text) return;
-  await OD.write(text, rem.etag);
+  await P.write(text, rem.etag);
 }
 async function syncAll() {
   if (!cloud) return;
@@ -182,10 +251,15 @@ function schedulePush() {
 }
 function authLost() {
   cloud = false; loginNeeded = true;
-  cloudMsg = 'Přihlášení k OneDrive vypršelo, přihlas se znovu.';
+  cloudMsg = 'Přihlášení k ' + pname() + ' vypršelo, přihlas se znovu.';
   setSync('local'); updateLoginBar();
 }
-function updateLoginBar() { const b = $('#login-bar'); if (b) b.classList.toggle('hidden', !loginNeeded); }
+function updateLoginBar() {
+  const b = $('#login-bar');
+  if (!b) return;
+  b.classList.toggle('hidden', !loginNeeded);
+  const t = $('#login-txt'); if (t) t.textContent = 'Přihlášení k ' + pname() + ' vypršelo, záloha čeká.';
+}
 
 // nahrazuje původní save(): razítka, uložení, naplánování zálohy
 function save() {
@@ -195,58 +269,67 @@ function save() {
   if (changed) { lsSet(CHANGE_KEY, String(Date.now())); schedulePush(); }
 }
 
-function cloudLogin() { if (!OD.configured()) return; OD.login(); }
+function cloudLogin(p) {
+  p = p || curProv() || lsGet(WAS_KEY) || provList()[0];
+  if (!PROV[p] || !PROV[p].configured()) return;
+  const c = curProv();
+  if (c && c !== p) lsDel(tokKey(c));
+  lsSet(CUR_KEY, p);
+  PROV[p].login();
+}
 function cloudLogout() {
-  if (!confirm('Odpojit OneDrive? Data v zařízení i záloha na OneDrive zůstanou.')) return;
-  lsDel(TOK_KEY); lsDel(WAS_KEY);
+  const p = curProv();
+  if (!confirm('Odpojit ' + pname() + '? Data v zařízení i záloha zůstanou.')) return;
+  if (p) lsDel(tokKey(p));
+  lsDel(CUR_KEY); lsDel(WAS_KEY);
   cloud = false; loginNeeded = false; cloudMsg = '';
   setSync('local'); updateLoginBar();
 }
 async function handleRedirect() {
-  const q = new URLSearchParams(location.search);
-  if (!q.has('code') && !q.has('error')) return;
+  const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+  if (!q.has('code') && !q.has('error') && !h.has('access_token') && !h.has('error')) return;
   history.replaceState({}, '', REDIRECT);
   let pend = null;
   try { pend = JSON.parse(lsGet(PEND_KEY)); } catch (e) {}
   lsDel(PEND_KEY);
-  if (q.has('error')) { cloudMsg = 'Přihlášení selhalo: ' + (q.get('error_description') || q.get('error')); return; }
-  if (!pend || pend.st !== q.get('state')) { cloudMsg = 'Přihlášení selhalo, zkus to znovu.'; return; }
+  if (!pend || !PROV[pend.p]) { cloudMsg = 'Přihlášení selhalo, zkus to znovu.'; return; }
   try {
-    await odTokenReq({ client_id: CFG.clientId, grant_type: 'authorization_code', code: q.get('code'), redirect_uri: REDIRECT, code_verifier: pend.ver, scope: OD_SCOPE });
-    lsSet(WAS_KEY, '1'); loginNeeded = false;
-  } catch (e) { cloudMsg = 'Přihlášení k OneDrive selhalo: ' + e.message; }
+    if (await PROV[pend.p].finish(pend, q, h)) { lsSet(CUR_KEY, pend.p); lsSet(WAS_KEY, pend.p); loginNeeded = false; }
+  } catch (e) { cloudMsg = 'Přihlášení k ' + PROV[pend.p].name + ' selhalo: ' + e.message; }
 }
 
 function renderCloudPanel() {
   const box = $('#cloud');
   if (!box) return;
+  const list = provList(), p = curProv();
   let h;
-  if (!OD.configured()) {
-    h = '<p class="meta">Záloha na OneDrive zatím není nastavená (config.js). Data jsou jen v tomto zařízení, zálohuj je exportem.</p>';
+  if (!list.length) {
+    h = '<p class="meta">Záloha do cloudu zatím není nastavená (config.js). Data jsou jen v tomto zařízení, zálohuj je exportem.</p>';
   } else if (signedIn() && cloud) {
     const lb = lastBackup();
-    h = `<div class="kv"><span>Stav</span><b>${esc(SYNC_LABEL[syncSt] || '')}</b></div>
+    h = `<div class="kv"><span>Úložiště</span><b>${esc(PROV[p].name)}</b></div>
+      <div class="kv"><span>Stav</span><b>${esc(syncLabel(syncSt) || '')}</b></div>
       <div class="kv"><span>Poslední záloha</span><b>${lb ? new Date(lb).toLocaleString('cs-CZ') : 'zatím žádná'}</b></div>
-      <p class="meta">Data se zálohují automaticky po každé změně do souboru badmove-backup.json ve složce aplikace na OneDrive. Na dalším zařízení se po přihlášení sloučí a zůstanou stejná všude.</p>
+      <p class="meta">Data se zálohují automaticky po každé změně do souboru badmove-backup.json (${esc(PROV[p].where)}). Na dalším zařízení se po přihlášení sloučí a zůstanou stejná všude.</p>
       <div class="actions"><button id="cl-sync">Zálohovat teď</button><button class="ghost" id="cl-out">Odpojit</button></div>`;
   } else {
-    h = `<p class="meta">Po připojení se data automaticky zálohují na tvůj OneDrive a dají se obnovit na jiném zařízení. Aplikace vidí jen svou vlastní složku.</p>
-      <button class="block" id="cl-in">Připojit OneDrive</button>`;
+    h = `<p class="meta">Po připojení se data automaticky zálohují a dají se obnovit na jiném zařízení. Aplikace vidí jen svou vlastní složku. Vyber jedno úložiště.</p>
+      <div class="stack">${list.map(k => `<button class="block" data-cl="${k}">Připojit ${esc(PROV[k].name)}</button>`).join('')}</div>`;
   }
   if (cloudMsg) h += `<p class="meta warn">${esc(cloudMsg)}</p>`;
   box.innerHTML = h;
-  const b1 = $('#cl-in'), b2 = $('#cl-sync'), b3 = $('#cl-out');
-  if (b1) b1.onclick = cloudLogin;
+  box.querySelectorAll('[data-cl]').forEach(b => b.onclick = () => cloudLogin(b.dataset.cl));
+  const b2 = $('#cl-sync'), b3 = $('#cl-out');
   if (b2) b2.onclick = () => { clearTimeout(pushT); syncAll(); };
   if (b3) b3.onclick = cloudLogout;
 }
 
 async function cloudStartup() {
   takeSnap();
-  $('#login-btn').onclick = cloudLogin;
-  if (!OD.configured()) { setSync('off'); return; }
+  $('#login-btn').onclick = () => cloudLogin();
+  if (!provList().length) { setSync('off'); return; }
   await handleRedirect();
-  if (!signedIn()) { loginNeeded = !!lsGet(WAS_KEY); setSync('local'); updateLoginBar(); return; }
+  if (!signedIn()) { loginNeeded = !!(lsGet(WAS_KEY) && PROV[lsGet(WAS_KEY)] && PROV[lsGet(WAS_KEY)].configured()); setSync('local'); updateLoginBar(); return; }
   cloud = true;
   await syncAll();
 }

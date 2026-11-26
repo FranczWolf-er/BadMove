@@ -9,7 +9,7 @@ Drzá motivační aplikace na každodenní pohyb: denní cíle, série, deník t
 - **Deník:** zápis tréninků (kickbox, funkční trénink, posilovna, běh, regenerace…) s délkou, kilometry (běh, procházka…) a poznámkou, týdenní souhrn včetně km a regenerace. Měsíční a roční přehled s grafem minut a rozpadem podle druhu.
 - **Rekordy:** zápis výkonů (kg, opakování v kuse, sekundy, km), automatické poznání osobáku a historie pokusů. Graf pokroku u každého cviku.
 - **Knihovna:** vlastní druhy tréninku (název, obvyklá délka, popis, regenerační, s kilometry), ze kterých se vybírá v deníku. Přejmenování se propíše i do deníku.
-- Vlastní denní cíle, ukázková data, export a import JSON, volitelná záloha na OneDrive.
+- Vlastní denní cíle, ukázková data, export a import JSON, záloha na OneDrive nebo Google Disk.
 - Instalace na plochu, offline režim, upozornění na novou verzi, světlý i tmavý režim.
 
 ## Použití
