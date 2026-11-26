@@ -98,6 +98,11 @@ button.danger{border-color:var(--danger);color:var(--danger);background:transpar
 details.card summary{font-weight:700;cursor:pointer}
 .erow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
 .erow span{min-width:0}
+.grow{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.grow:first-child{border-top:0;padding-top:0}
+.grow .gb{display:flex;gap:6px;flex-wrap:wrap}
+.grow .gb .arr{min-width:44px;padding:6px 10px;font-size:15px}
+.grow.edit-on{outline-offset:4px;border-radius:6px}
 form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 form .wide{grid-column:1/-1}
 label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
@@ -327,9 +332,10 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
         <label class="wide">Název<input id="gName" placeholder="Např. Švihadlo" required></label>
         <label>Plná verze<input id="gFull" placeholder="5 min" required></label>
         <label>Expres<input id="gExp" placeholder="1 min" required></label>
-        <button class="block wide" type="submit">Přidat cíl</button>
+        <button class="block wide" type="submit" id="gSave">Přidat cíl</button>
+        <button class="block ghost wide hidden" type="button" id="gCancel">Zrušit úpravu</button>
       </form>
-      <p class="note" style="margin-top:8px">Odebraný cíl zmizí od dneška, starší dny zůstanou, jak byly.</p>
+      <p class="note" style="margin-top:8px">Šipkami měníš pořadí na obrazovce Dnes. Úprava názvu nebo počtů nemaže historii ani sérii. Odebraný cíl zmizí od dneška, starší dny zůstanou, jak byly.</p>
     </section>
     <section class="card">
       <h3>Vzhled</h3>
@@ -449,6 +455,7 @@ function pick(arr, seed) {
 let seed = new Date().getDate(), quoteOverride = null;
 
 const dayRec = k => data.days.find(d => d.id === k);
+const goalsOrd = () => data.goals.map((g, i) => [g, g.ord ?? i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);   // pořadí cílů (ord, jinak pořadí v poli)
 const goalActive = (g, k) => (!g.since || g.since <= k) && (!g.until || k < g.until);
 function dayState(k) {
   const d = dayRec(k);
@@ -490,7 +497,7 @@ function renderToday() {
   if (ts === 'sick') M.appendChild(el('span', 'pill sick', 'Marodka: série stojí'));
 
   const G = $('#goals'); G.innerHTML = '';
-  data.goals.filter(g => goalActive(g, TK)).forEach(g => {
+  goalsOrd().filter(g => goalActive(g, TK)).forEach(g => {
     const v = td.goals && td.goals[g.id];
     const row = el('div', 'goal' + (v ? ' ' + v : ''));
     const left = el('div');
@@ -945,27 +952,56 @@ $('#libForm').addEventListener('submit', e => {
 });
 
 /* ---------- Nastavení: cíle ---------- */
+let goalEdit = null;
 function renderGoals() {
   const E = $('#editList'); E.innerHTML = '';
-  const act = data.goals.filter(g => !g.until);
-  act.forEach(g => {
-    const r = el('div', 'erow');
-    r.appendChild(el('span', null, g.name + ' · ' + g.full + ' / expres ' + g.exp));
-    const x = el('button', 'danger', 'Odebrat');
+  const act = goalsOrd().filter(g => !g.until);
+  act.forEach((g, i) => {
+    const r = el('div', 'grow' + (g.id === goalEdit ? ' edit-on' : ''));
+    const t = el('div');
+    t.appendChild(el('div', 'name', g.name));
+    t.appendChild(el('div', 'sub', g.full + ' · expres ' + g.exp));
+    r.appendChild(t);
+    const b = el('div', 'gb');
+    const up = el('button', 'arr', '↑'), dn = el('button', 'arr', '↓'), ed = el('button', null, 'Upravit'), x = el('button', 'danger', 'Odebrat');
+    up.setAttribute('aria-label', 'Posunout ' + g.name + ' nahoru'); dn.setAttribute('aria-label', 'Posunout ' + g.name + ' dolů');
+    up.disabled = i === 0; dn.disabled = i === act.length - 1;
+    up.onclick = () => moveGoal(act, i, -1); dn.onclick = () => moveGoal(act, i, 1);
+    ed.onclick = () => {
+      goalEdit = g.id;
+      $('#gName').value = g.name; $('#gFull').value = g.full; $('#gExp').value = g.exp;
+      $('#gSave').textContent = 'Uložit změny'; $('#gCancel').classList.remove('hidden');
+      renderGoals(); $('#gName').focus();
+    };
     x.disabled = act.length <= 1;
     x.onclick = () => {
       if (!confirm('Odebrat cíl ' + g.name + '?')) return;
       if (g.since && g.since >= TK) data.goals = data.goals.filter(y => y.id !== g.id);   // přidaný dnes: rovnou pryč
       else g.until = TK;
+      if (goalEdit === g.id) goalReset();
       save(); render();
     };
-    r.appendChild(x); E.appendChild(r);
+    b.append(up, dn, ed, x); r.appendChild(b); E.appendChild(r);
   });
 }
+// pořadí se ukládá do pole ord u každého cíle, aby přežilo synchronizaci (záloha slučuje záznamy podle id)
+function moveGoal(act, i, d) {
+  const a = act.slice(); [a[i], a[i + d]] = [a[i + d], a[i]];
+  const rest = goalsOrd().filter(g => g.until);
+  a.concat(rest).forEach((g, n) => { g.ord = n; });
+  save(); render();
+}
+function goalReset() {
+  goalEdit = null; $('#addGoal').reset();
+  $('#gSave').textContent = 'Přidat cíl'; $('#gCancel').classList.add('hidden');
+}
+$('#gCancel').onclick = () => { goalReset(); renderGoals(); };
 $('#addGoal').addEventListener('submit', e => {
   e.preventDefault();
-  data.goals.push({ id: uid(), name: $('#gName').value.trim(), full: $('#gFull').value.trim(), exp: $('#gExp').value.trim(), since: TK });
-  e.target.reset(); save(); render();
+  const rec = { name: $('#gName').value.trim(), full: $('#gFull').value.trim(), exp: $('#gExp').value.trim() };
+  if (goalEdit) data.goals = data.goals.map(g => g.id === goalEdit ? Object.assign({}, g, rec) : g);
+  else data.goals.push(Object.assign({ id: uid(), since: TK, ord: Math.max(-1, ...data.goals.map((g, i) => g.ord ?? i)) + 1 }, rec));
+  goalReset(); save(); render();
 });
 
 /* ---------- Ukázková data ---------- */
