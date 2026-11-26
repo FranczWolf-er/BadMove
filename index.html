@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BadMove</title>
-<meta name="theme-color" content="#18203a">
+<meta name="theme-color" content="#2a1414">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BadMove">
@@ -14,15 +14,15 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* Jeden úzký sloupec, dole lišta se záložkami Dnes / Deník / Rekordy. Barvy: tmavě modrá a žlutá páska z tělocvičny. */
+/* Jeden úzký sloupec, dole lišta se záložkami Dnes / Deník / Rekordy. Barvy: boxerský ring – tmavě vínová, krémová a signální červená. */
 :root{
-  --bg:#f3f4f8; --surface:#ffffff; --ink:#18203a; --muted:#646b82; --line:#dde0ea; --header:#18203a; --header-ink:#f3f4f8;
-  --tape:#ffc61a; --tape-ink:#18203a; --tape-soft:#ffe9a3; --sick:#6f8fd6; --sick-soft:#dfe7f8; --miss:#e7e8ee; --danger:#c94a4a; --warn:#b26b00;
+  --bg:#f7f1ea; --surface:#fffdf9; --ink:#2a1414; --muted:#7a6360; --line:#eadfd5; --header:#2a1414; --header-ink:#f7f1ea;
+  --tape:#e63a2e; --tape-ink:#ffffff; --tape-soft:#fbd5cf; --sick:#3f8f8a; --sick-soft:#d6ece9; --miss:#ece4dc; --danger:#a3201a; --warn:#9a5b00;
   --display:"Archivo Black","Arial Black",Impact,sans-serif; --body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#10142a; --surface:#1a2040; --ink:#eef0f8; --muted:#9aa1bb; --line:#2b3358; --header:#0b0e1f; --header-ink:#eef0f8;
-  --tape-soft:#5a4a17; --sick:#8aa6ea; --sick-soft:#27345e; --miss:#232a4c; --danger:#ef7b7b; --warn:#ffd98a; color-scheme:dark}}
+  --bg:#160c0c; --surface:#241414; --ink:#f6ece6; --muted:#b39d98; --line:#3d2423; --header:#0e0606; --header-ink:#f6ece6;
+  --tape:#ff4a3a; --tape-ink:#ffffff; --tape-soft:#5a1f1a; --sick:#5fb8b0; --sick-soft:#173836; --miss:#2e1c1b; --danger:#ff8a80; --warn:#ffcf80; color-scheme:dark}}
 *{box-sizing:border-box}
 html{min-height:calc(100% + env(safe-area-inset-top));-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;padding-bottom:calc(84px + env(safe-area-inset-bottom))}

@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#18203a"/>
-  <g fill="none" stroke="#ffc61a" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="512" height="512" rx="96" fill="#2a1414"/>
+  <g fill="none" stroke="#f7f1ea" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
     <path d="M296 186 L214 300"/>
     <path d="M214 300 L196 440"/>
     <path d="M214 300 L262 440"/>
     <path d="M278 210 L346 300"/>
     <path d="M276 212 L212 186 L186 262"/>
   </g>
-  <circle cx="326" cy="146" r="40" fill="#ffc61a"/>
-  <g fill="none" stroke="#ff5a4e" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="326" cy="146" r="40" fill="#f7f1ea"/>
+  <g fill="none" stroke="#ff4a3a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
     <path d="M152 232 L132 212"/>
     <path d="M146 270 L112 268"/>
     <path d="M156 306 L132 326"/>
   </g>
-  <path d="M60 470 L452 470" stroke="#ffc61a" stroke-width="10" stroke-linecap="round" stroke-dasharray="26 18"/>
+  <path d="M60 470 L452 470" stroke="#e63a2e" stroke-width="10" stroke-linecap="round" stroke-dasharray="26 18"/>
 </svg>
