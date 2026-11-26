@@ -8,11 +8,8 @@
   - **Kámoš:** milý a povzbudivý, chválí i malé pokroky,
   - případně další povahy (suchý vtipálek, vojenský instruktor…).
   Hlášky jsou rozdělené podle situace (nic hotovo, rozjeto, splněno, expres, marodka, zapsaný trénink, nový osobák), takže nový trenér znamená jen novou sadu textů.
-
-## Nápady k rozhodnutí
-- Připomínky přímo z aplikace (web push na iPhonu potřebuje malý server, např. zdarma přes Cloudflare Workers).
-- Odznaky za milníky série (7, 30, 100 dní) a vlastní odměny.
-- Sdílení série s kamarády a vzájemné hecování.
+- Řízené ranní protažení: cvik po cviku s odpočtem, pípnutím a obrázkem, obrazovka nezhasne, trenér hlásí cviky nahlas (hlasová syntéza) a na konci se cíl sám odškrtne.
+- Odznaky za milníky (série 7, 30, 100 dní, první trénink daného druhu, nový osobák…) s drzým popiskem a oslavou při získání.
 
 ## Hotovo
 - Úprava zapsaného tréninku (Upravit v historii deníku) a výkonu (klepnutím na pokus v historii rekordu).
