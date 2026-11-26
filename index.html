@@ -283,6 +283,12 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
       <p class="note" style="margin-top:8px">Odebraný cíl zmizí od dneška, starší dny zůstanou, jak byly.</p>
     </section>
     <section class="card">
+      <h3>Trenér</h3>
+      <p class="meta">Kdo na tebe bude ráno řvát. Volba platí jen v tomhle telefonu.</p>
+      <div class="seg" role="group" aria-label="Trenér"><button id="coachB">BadMove</button><button id="coachG">Trenér Grznár</button></div>
+      <p class="note" id="coachNote" style="margin-top:8px"></p>
+    </section>
+    <section class="card">
       <h3>Záloha do cloudu</h3>
       <div id="cloud"></div>
     </section>
@@ -360,6 +366,21 @@ const Q = {
   train: ['Trénink zapsaný. Pytel si to bude pamatovat.', 'Zapsáno. Budoucí ty ti děkuje.', 'Další cihla do zdi. Pokračuj.'],
   pr: ['Nový osobák! Včerejší ty právě prohrál.', 'Rekord padl. Činky to nečekaly.', 'Osobák. Tohle si zarámuj.']
 };
+// Trenér Grznár: jeho veřejné hlášky (rozhovor SvětFitness 2018, Webzive 2024) a hlášky dodané uživatelem. Sprosté, 18+.
+// Při marodce se schválně používá laskavá sada Q.sick, žádné řvaní.
+const QG = {
+  idle: ['Žene mě dopředu rozdělaná práce, vždy dotahuji věci do konce!', 'Stará škola je totiž vždy o krok napřed!', 'Když jsi tlustej, tak jsi bezcennej!', 'V*le m*dat!',
+    'Musí sport milovat, musí být ochoten mu obětovat vše, musí být chytrý, vytrvalý a musí vědět proč to dělá!', 'Chlap má bejt strašnej v*le, prostě chlap, obrovskej propocenej trhač ku*d.'],
+  partial: ['Ještě to nemůžeš vzdát.', 'Poloviční dřepy nejsou dřepy, ničí to kolena, jestli jste dementi, dělejte poloviční dřepy.', 'Žene mě dopředu rozdělaná práce, vždy dotahuji věci do konce!'],
+  done: ['Na tvrdý trénink si totiž zvykneš, ale na dietu, dokola se opakující rutinu a sypačku se zvyknout nedá...', 'Jsem stále starej Grznár, ten, co dře víc než ostatní.', 'Stará škola je totiž vždy o krok napřed!'],
+  express: ['Cvičit s lehkýma váhama je jako mrdat s měkkým čurákem. Těžký série se zvedaj, ty se necvičí!', 'Slovo motivace je abstraktní výraz, jenž má dost přeceňovaný význam.'],
+  train: ['Nepoužíváš suplementy před tréninkem? Jseš naprostej čůrák!', 'Když už hadry, tak už aspoň nějakou značku, nějaký zasraný adidas ty vole a tapout vole a takovýdle hovna…', 'U benche se musíte dotknout hrudníku, jinak je to zkurvenej paskvil…'],
+  pr: ['Čím víc toho tam pošleš, tím víc to roste.', '300 kg dřepnu s jednou rukou v nose vole a druhou v prdeli.', 'Jsem především sportovec, který přijímá ty největší výzvy.']
+};
+const COACH_KEY = 'badmove-coach';
+let coach = 'badmove';
+try { coach = localStorage.getItem(COACH_KEY) === 'grznar' ? 'grznar' : 'badmove'; } catch (e) {}
+const QQ = k => coach === 'grznar' && k !== 'sick' ? QG[k] : Q[k];
 const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
 let seed = new Date().getDate(), quoteOverride = null;
 
@@ -397,7 +418,7 @@ function renderToday() {
   const ts = dayState(TK), td = dayRec(TK) || { goals: {} };
   $('#streak').textContent = streak;
   $('#streakLbl').textContent = plural(streak, 'den v řadě', 'dny v řadě', 'dní v řadě');
-  const qset = ts === 'sick' ? Q.sick : ts === 'express' ? Q.express : ts === 'full' ? Q.done : ts === 'partial' ? Q.partial : Q.idle;
+  const qset = QQ(ts === 'sick' ? 'sick' : ts === 'express' ? 'express' : ts === 'full' ? 'done' : ts === 'partial' ? 'partial' : 'idle');
   $('#quote').textContent = quoteOverride || pick(qset, seed);
   quoteOverride = null;
   const M = $('#meta'); M.innerHTML = '';
@@ -490,7 +511,7 @@ $('#addTr').addEventListener('submit', e => {
   e.preventDefault();
   data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, note: $('#tNote').value.trim(), ...(hasKm($('#tType').value) && +$('#tKm').value ? { km: +$('#tKm').value } : {}) });
   $('#tMin').value = ''; $('#tKm').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
-  seed++; quoteOverride = pick(Q.train, seed); save(); render();
+  seed++; quoteOverride = pick(QQ('train'), seed); save(); render();
 });
 
 /* ---------- Rekordy ---------- */
@@ -533,7 +554,7 @@ $('#addPr').addEventListener('submit', e => {
   data.records.push({ id: uid(), ex: name, val, unit, date: $('#pDate').value || TK });
   const T = $('#prToast');
   if (!prev.length) T.textContent = 'Zapsáno. ' + name + ' má první laťku: ' + fmtNum(val) + ' ' + unit + '.';
-  else if (val > prevBest) { seed++; T.textContent = pick(Q.pr, seed) + ' ' + name + ': ' + fmtNum(val) + ' ' + unit + ' (dřív ' + fmtNum(prevBest) + ').'; }
+  else if (val > prevBest) { seed++; T.textContent = pick(QQ('pr'), seed) + ' ' + name + ': ' + fmtNum(val) + ' ' + unit + ' (dřív ' + fmtNum(prevBest) + ').'; }
   else T.textContent = 'Zapsáno. Osobák zůstává ' + fmtNum(prevBest) + ' ' + unit + '. Příště.';
   T.classList.remove('hidden');
   $('#pVal').value = ''; $('#pDate').value = TK;
@@ -787,8 +808,18 @@ function render() {
   if (keyOf(new Date()) !== TK) { setToday(); $('#tDate').value = TK; $('#pDate').value = TK; }
   $('#demo-bar').classList.toggle('hidden', !hasDemo());
   $('#demo-add').disabled = hasDemo();
-  renderToday(); renderLog(); renderOverview(); renderPR(); renderLib(); renderGoals(); syncKm();
+  renderToday(); renderLog(); renderOverview(); renderPR(); renderLib(); renderGoals(); syncKm(); renderCoach();
 }
+function renderCoach() {
+  $('#coachB').classList.toggle('on', coach === 'badmove');
+  $('#coachG').classList.toggle('on', coach === 'grznar');
+  $('#coachNote').textContent = coach === 'grznar'
+    ? 'Sprosté a bez servítků, 18+. Hlášky Filipa Grznára. Když marodíš, mlčí a mluví laskavá verze.'
+    : 'Drzý, ale slušný. Pro sprostou verzi přepni na trenéra Grznára.';
+}
+function setCoach(c) { coach = c; try { localStorage.setItem(COACH_KEY, c); } catch (e) {} seed++; render(); }
+$('#coachB').onclick = () => setCoach('badmove');
+$('#coachG').onclick = () => setCoach('grznar');
 const rerender = render;   // volá cloud.js po sloučení se zálohou
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
 $('#tDate').value = TK; $('#pDate').value = TK;
