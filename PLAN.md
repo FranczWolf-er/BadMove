@@ -11,14 +11,13 @@
 
 ## Nápady k rozhodnutí
 - Připomínky přímo z aplikace (web push na iPhonu potřebuje malý server, např. zdarma přes Cloudflare Workers).
-- Úprava zapsaného tréninku a výkonu (zatím jen smazání).
-- Rekordy, kde je méně lépe (čas na 5 km, sprint).
 - Odznaky za milníky série (7, 30, 100 dní) a vlastní odměny.
-
 - Sdílení série s kamarády a vzájemné hecování.
-- Plán tréninků na týden (kickbox út/čt, funkční so…) a jeho odškrtávání.
 
 ## Hotovo
+- Úprava zapsaného tréninku (Upravit v historii deníku) a výkonu (klepnutím na pokus v historii rekordu).
+- Rekordy, kde je méně lépe: zaškrtávátko „Méně je lépe“ a jednotka čas (min:s) pro 5 km, sprint apod. Graf u nich ukazuje výš = rychlejší.
+- Týdenní plán tréninků (Deník → Plán na týden): odškrtne se sám zápisem stejného druhu, na Dnes tlačítko Odcvičeno, splnění plánu v měsíčním a ročním přehledu.
 - Denní cíle s plnou a expres verzí, série se žolíkem, marodka, kalendář 5 týdnů.
 - Deník tréninků s týdenním souhrnem (tréninky, minuty, regenerace), osobní rekordy s historií.
 - Knihovna vlastních druhů tréninku (výběr v deníku, regenerační druhy se počítají do regenerace).
