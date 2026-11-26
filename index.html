@@ -117,8 +117,11 @@ input,select{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;borde
 .hist{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .hist span{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .hist span.top{background:var(--tape);border-color:var(--tape);color:var(--tape-ink);font-weight:700}
+.lib h3{margin:0;font-size:16px}
+.lib .ex{white-space:pre-line;font-size:14px;margin:8px 0 10px;overflow-wrap:anywhere}
+textarea{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);width:100%;min-height:110px;resize:vertical}
 .toast{background:var(--tape);color:var(--tape-ink);font-weight:700;border-radius:12px;padding:12px 14px}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);
   padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
 nav button{border:0;background:transparent;padding:10px 4px;font-size:14px;color:var(--muted)}
 nav button.on{color:var(--ink);background:var(--tape-soft)}
@@ -214,6 +217,25 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
     </section>
   </div>
 
+  <!-- KNIHOVNA -->
+  <div class="view hidden" id="v-knihovna">
+    <section class="card stack">
+      <h2 id="libTitle">Nový trénink do knihovny</h2>
+      <form id="libForm">
+        <label class="wide">Název<input id="lName" placeholder="Např. Kickbox kondička" required></label>
+        <label>Druh<select id="lType"><option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Regenerace</option><option>Jiné</option></select></label>
+        <label>Délka (min)<input id="lMin" type="number" min="1" max="600" inputmode="numeric" placeholder="45" required></label>
+        <label class="wide">Cviky a postup<textarea id="lEx" placeholder="Rozcvička 10 min&#10;5 kol: 20 kopů, 20 úderů, 10 kliků&#10;Protažení 5 min"></textarea></label>
+        <button class="block wide" type="submit" id="libSave">Uložit do knihovny</button>
+        <button class="block ghost wide hidden" type="button" id="libCancel">Zrušit úpravu</button>
+      </form>
+    </section>
+    <section class="stack">
+      <h2>Moje tréninky</h2>
+      <div class="stack" id="libList"></div>
+    </section>
+  </div>
+
   <!-- NASTAVENÍ -->
   <div class="view hidden" id="v-nastaveni">
     <section class="card">
@@ -250,6 +272,7 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
   <button data-tab="dnes" class="on">Dnes</button>
   <button data-tab="denik">Deník</button>
   <button data-tab="rekordy">Rekordy</button>
+  <button data-tab="knihovna">Knihovna</button>
 </nav>
 
 <script src="config.js"></script>
@@ -282,7 +305,7 @@ const DEFAULT_GOALS = [
 ];
 let data;
 try { data = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { data = {}; }
-['goals', 'days', 'trainings', 'records'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+['goals', 'days', 'trainings', 'records', 'library'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 if (!data.tomb || typeof data.tomb !== 'object') data.tomb = {};
 if (!data.start) { data.start = TK; if (!data.goals.length) data.goals = DEFAULT_GOALS.map(g => ({ ...g })); }
 
@@ -308,7 +331,7 @@ function dayState(k) {
   if (vals.length && vals.every(Boolean)) return vals.includes('express') ? 'express' : 'full';
   return vals.some(Boolean) ? 'partial' : 'none';
 }
-const hasDemo = () => data.days.some(d => d.demo) || data.trainings.some(t => t.demo) || data.records.some(r => r.demo);
+const hasDemo = () => data.days.some(d => d.demo) || data.trainings.some(t => t.demo) || data.records.some(r => r.demo) || data.library.some(l => l.demo);
 const effStart = () => data.days.filter(d => d.demo).reduce((m, d) => d.id < m ? d.id : m, data.start);
 function compute() {
   const jokers = new Set(), used = {}, start = effStart();
@@ -411,7 +434,9 @@ function renderLog() {
 }
 $('#addTr').addEventListener('submit', e => {
   e.preventDefault();
-  data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() });
+  const lib = e.target.dataset.lib && data.library.find(x => x.id === e.target.dataset.lib && x.name === $('#tNote').value.trim());
+  data.trainings.push(Object.assign({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() }, lib ? { libId: lib.id } : {}));
+  delete e.target.dataset.lib;
   $('#tMin').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
   seed++; quoteOverride = pick(Q.train, seed); save(); render();
 });
@@ -465,6 +490,52 @@ $('#pEx').addEventListener('change', () => {
   if (r) $('#pUnit').value = r.unit;
 });
 
+/* ---------- Knihovna tréninků ---------- */
+let libEdit = null;
+function renderLib() {
+  const L = $('#libList'); L.innerHTML = '';
+  const list = data.library.slice().sort((a, b) => a.name.localeCompare(b.name, 'cs'));
+  if (!list.length) { L.appendChild(el('p', 'note', 'Knihovna je prázdná. Vypiš si svůj první trénink nahoře a příště ho zapíšeš jedním klepnutím.')); return; }
+  list.forEach(l => {
+    const c = el('div', 'card lib');
+    c.appendChild(el('h3', null, l.name));
+    const used = data.trainings.filter(t => t.libId === l.id).length;
+    const m = el('div', 'sub');
+    m.appendChild(el('span', 'tag' + (l.type === 'Kickbox' ? ' k' : l.type === 'Funkční trénink' ? ' f' : l.type === 'Regenerace' ? ' r' : ''), l.type));
+    m.appendChild(document.createTextNode(l.min + ' min' + (used ? ' · zapsáno ' + used + '×' : '')));
+    c.appendChild(m);
+    if (l.ex) c.appendChild(el('div', 'ex', l.ex));
+    const a = el('div', 'actions');
+    const go = el('button', 'on', 'Zapsat do deníku'), ed = el('button', null, 'Upravit'), del = el('button', 'danger', 'Smazat');
+    go.onclick = () => {
+      show('denik');
+      $('#tType').value = l.type; $('#tMin').value = l.min; $('#tNote').value = l.name; $('#tDate').value = TK;
+      $('#addTr').dataset.lib = l.id;
+      $('#tFeel').focus();
+    };
+    ed.onclick = () => {
+      libEdit = l.id;
+      $('#lName').value = l.name; $('#lType').value = l.type; $('#lMin').value = l.min; $('#lEx').value = l.ex || '';
+      $('#libTitle').textContent = 'Upravit trénink'; $('#libSave').textContent = 'Uložit změny'; $('#libCancel').classList.remove('hidden');
+      window.scrollTo(0, 0);
+    };
+    del.onclick = () => { if (!confirm('Smazat ' + l.name + ' z knihovny? Zápisy v deníku zůstanou.')) return; data.library = data.library.filter(x => x.id !== l.id); if (libEdit === l.id) libReset(); save(); render(); };
+    a.append(go, ed, del); c.appendChild(a); L.appendChild(c);
+  });
+}
+function libReset() {
+  libEdit = null; $('#libForm').reset();
+  $('#libTitle').textContent = 'Nový trénink do knihovny'; $('#libSave').textContent = 'Uložit do knihovny'; $('#libCancel').classList.add('hidden');
+}
+$('#libCancel').onclick = libReset;
+$('#libForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const rec = { name: $('#lName').value.trim(), type: $('#lType').value, min: +$('#lMin').value, ex: $('#lEx').value.trim() };
+  if (libEdit) data.library = data.library.map(x => x.id === libEdit ? Object.assign({}, x, rec) : x);
+  else data.library.push(Object.assign({ id: uid() }, rec));
+  libReset(); save(); render();
+});
+
 /* ---------- Nastavení: cíle ---------- */
 function renderGoals() {
   const E = $('#editList'); E.innerHTML = '';
@@ -508,6 +579,10 @@ function addDemo() {
     .forEach(([o, type, min, feel, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, feel, note }));
   [['Mrtvý tah', 50, 'kg', 40], ['Mrtvý tah', 55, 'kg', 15], ['Mrtvý tah', 60, 'kg', 4], ['Shyby', 6, '×', 30], ['Shyby', 8, '×', 5], ['Plank', 90, 's', 10]]
     .forEach(([ex, val, unit, o]) => data.records.push({ id: uid(), demo: true, ex, val, unit, date: d(o) }));
+  [['Kickbox kondička', 'Kickbox', 60, 'Švihadlo 10 min\n5 kol na pytli po 3 min: kombinace 1-2-kop\nKliky 3× 15, sedy-lehy 3× 20\nProtažení 10 min'],
+   ['Funkční kruh', 'Funkční trénink', 40, '4 kola, 40 s práce / 20 s pauza:\nkettlebell swing, burpees, výpady, plank, farmer walk'],
+   ['Ranní regenerace', 'Regenerace', 20, 'Válec na záda a stehna 8 min\nKočka-kráva, dítě, holub\nDýchání 3 min']]
+    .forEach(([name, type, min, ex]) => data.library.push({ id: uid(), demo: true, name, type, min, ex }));
   save(); show('dnes'); render();
 }
 function removeDemo() {
@@ -515,6 +590,7 @@ function removeDemo() {
   data.days = data.days.filter(x => !x.demo);
   data.trainings = data.trainings.filter(x => !x.demo);
   data.records = data.records.filter(x => !x.demo);
+  data.library = data.library.filter(x => !x.demo);
   save(); render();
 }
 $('#demo-add').onclick = addDemo;
@@ -523,7 +599,7 @@ $('#demo-del').onclick = removeDemo;
 /* ---------- Export a import ---------- */
 $('#export').onclick = async () => {
   const nd = a => a.filter(x => !x.demo);
-  const out = { app: 'badmove', v: 1, start: data.start, goals: data.goals, days: nd(data.days), trainings: nd(data.trainings), records: nd(data.records) };
+  const out = { app: 'badmove', v: 1, start: data.start, goals: data.goals, days: nd(data.days), trainings: nd(data.trainings), records: nd(data.records), library: nd(data.library) };
   const name = 'badmove-' + TK + '.json';
   const file = new File([JSON.stringify(out, null, 2)], name, { type: 'application/json' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
@@ -538,14 +614,14 @@ $('#import').onchange = async ev => {
     const inc = JSON.parse(await f.text());
     if (inc.app !== 'badmove') throw new Error('tohle není export z BadMove');
     const cnt = {};
-    ['goals', 'days', 'trainings', 'records'].forEach(k => {
+    ['goals', 'days', 'trainings', 'records', 'library'].forEach(k => {
       const have = new Set(data[k].map(x => x.id));
       const add = (Array.isArray(inc[k]) ? inc[k] : []).filter(x => x && x.id && !have.has(x.id));
       data[k].push(...add); cnt[k] = add.length;
     });
     if (inc.start && inc.start < data.start) data.start = inc.start;
     save(); render();
-    alert('Přidáno dnů: ' + cnt.days + ', tréninků: ' + cnt.trainings + ', výkonů: ' + cnt.records + ', cílů: ' + cnt.goals + '.');
+    alert('Přidáno dnů: ' + cnt.days + ', tréninků: ' + cnt.trainings + ', výkonů: ' + cnt.records + ', cílů: ' + cnt.goals + ', tréninků v knihovně: ' + cnt.library + '.');
   } catch (err) { alert('Import selhal: ' + err.message); }
   ev.target.value = '';
 };
@@ -556,7 +632,7 @@ function show(t) {
   tab = t;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('#gear').classList.toggle('on', t === 'nastaveni');
-  ['dnes', 'denik', 'rekordy', 'nastaveni'].forEach(x => $('#v-' + x).classList.toggle('hidden', x !== t));
+  ['dnes', 'denik', 'rekordy', 'knihovna', 'nastaveni'].forEach(x => $('#v-' + x).classList.toggle('hidden', x !== t));
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
@@ -566,7 +642,7 @@ function render() {
   if (keyOf(new Date()) !== TK) { setToday(); $('#tDate').value = TK; $('#pDate').value = TK; }
   $('#demo-bar').classList.toggle('hidden', !hasDemo());
   $('#demo-add').disabled = hasDemo();
-  renderToday(); renderLog(); renderPR(); renderGoals();
+  renderToday(); renderLog(); renderPR(); renderLib(); renderGoals();
 }
 const rerender = render;   // volá cloud.js po sloučení se zálohou
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });

@@ -21,5 +21,6 @@
 ## Hotovo
 - Denní cíle s plnou a expres verzí, série se žolíkem, marodka, kalendář 5 týdnů.
 - Deník tréninků s týdenním souhrnem (tréninky, minuty, regenerace), osobní rekordy s historií.
+- Knihovna vlastních tréninků se zápisem do deníku jedním klepnutím.
 - Vlastní cíle, ukázková data, export a import JSON, záloha na OneDrive (připravená, čeká na client ID).
 - Instalace na plochu, offline režim, upozornění na novou verzi.
