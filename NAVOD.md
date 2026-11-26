@@ -8,8 +8,8 @@ Za minutu běží aplikace na `https://franczwolf-er.github.io/BadMove/` (včetn
 1. Otevři adresu v Safari → Sdílet → **Přidat na plochu**.
 2. Spouštěj ji z plochy. Aplikace z plochy má na iPhonu **vlastní úložiště**, odděleně od Safari.
 
-## 3. Záloha na OneDrive (volitelné, jednorázově)
-Princip je stejný jako u BadGuns, jen s vlastní registrací:
+## 3. Záloha na OneDrive
+Aplikace má vlastní registraci **BadMove** v Microsoft Entra (client ID je v `config.js`). Postup, kdyby bylo potřeba ji založit znovu:
 1. https://entra.microsoft.com → Identity → Applications → **App registrations** → **New registration**.
 2. Name `BadMove`, Supported account types: *Accounts in any organizational directory and personal Microsoft accounts*,
    Redirect URI: platforma **Single-page application (SPA)**, hodnota `https://franczwolf-er.github.io/BadMove/` → Register.
