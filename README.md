@@ -6,8 +6,8 @@ Drzá motivační aplikace na každodenní pohyb: denní cíle, série, deník t
 - **Série se žolíkem:** jeden vynechaný den za týden se omluví automaticky.
 - **Marodka:** při nemoci se série zastaví, nic se neztratí a hlášky zjemní.
 - **Kalendář** posledních 5 týdnů (splněno, expres, marodka, žolík, dny s tréninkem).
-- **Deník:** zápis tréninků (kickbox, funkční trénink, posilovna, běh, regenerace…) s délkou, kilometry (běh, procházka…) a poznámkou, týdenní souhrn včetně km a regenerace.
-- **Rekordy:** zápis výkonů (kg, opakování v kuse, sekundy, km), automatické poznání osobáku a historie pokusů.
+- **Deník:** zápis tréninků (kickbox, funkční trénink, posilovna, běh, regenerace…) s délkou, kilometry (běh, procházka…) a poznámkou, týdenní souhrn včetně km a regenerace. Měsíční a roční přehled s grafem minut a rozpadem podle druhu.
+- **Rekordy:** zápis výkonů (kg, opakování v kuse, sekundy, km), automatické poznání osobáku a historie pokusů. Graf pokroku u každého cviku.
 - **Knihovna:** vlastní druhy tréninku (název, obvyklá délka, popis, regenerační, s kilometry), ze kterých se vybírá v deníku. Přejmenování se propíše i do deníku.
 - Vlastní denní cíle, ukázková data, export a import JSON, volitelná záloha na OneDrive.
 - Instalace na plochu, offline režim, upozornění na novou verzi, světlý i tmavý režim.
