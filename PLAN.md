@@ -3,6 +3,11 @@
 ## Naplánováno
 - Otestovat na iPhonu z plochy a sepsat, co chybí nebo vadí.
 - Zapnout zálohu na OneDrive (registrace v Entra, viz NAVOD.md).
+- Výběr trenéra: v nastavení si vybereš trenéra a ten mluví svými vlastními hláškami. Každý trenér má jiný přístup, například:
+  - **Drsňák:** zlý a drzý, nic neodpustí („Gauč tě miluje. Nenech se.“),
+  - **Kámoš:** milý a povzbudivý, chválí i malé pokroky,
+  - případně další povahy (suchý vtipálek, vojenský instruktor…).
+  Hlášky jsou rozdělené podle situace (nic hotovo, rozjeto, splněno, expres, marodka, zapsaný trénink, nový osobák), takže nový trenér znamená jen novou sadu textů.
 
 ## Nápady k rozhodnutí
 - Připomínky přímo z aplikace (web push na iPhonu potřebuje malý server, např. zdarma přes Cloudflare Workers).
