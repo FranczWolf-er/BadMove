@@ -118,6 +118,8 @@ input,select{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;borde
 .hist span{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .hist span.top{background:var(--tape);border-color:var(--tape);color:var(--tape-ink);font-weight:700}
 .lib h3{margin:0;font-size:16px}
+label.check{flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:10px}
+label.check input{width:22px;height:22px}
 .lib .ex{white-space:pre-line;font-size:14px;margin:8px 0 10px;overflow-wrap:anywhere}
 textarea{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);width:100%;min-height:110px;resize:vertical}
 .toast{background:var(--tape);color:var(--tape-ink);font-weight:700;border-radius:12px;padding:12px 14px}
@@ -180,9 +182,7 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
     <section class="card stack">
       <h2>Zapsat trénink</h2>
       <form id="addTr">
-        <label>Druh<select id="tType">
-          <option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Regenerace</option><option>Jiné</option>
-        </select></label>
+        <label>Druh<select id="tType"></select></label>
         <label>Datum<input id="tDate" type="date" required></label>
         <label>Délka (min)<input id="tMin" type="number" min="1" max="600" inputmode="numeric" placeholder="60" required></label>
         <label>Pocit<select id="tFeel"><option value="3">Dobrý</option><option value="4">Výborný</option><option value="2">Těžký</option><option value="1">Přežil jsem</option></select></label>
@@ -220,18 +220,19 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
   <!-- KNIHOVNA -->
   <div class="view hidden" id="v-knihovna">
     <section class="card stack">
-      <h2 id="libTitle">Nový trénink do knihovny</h2>
+      <h2 id="libTitle">Nový druh tréninku</h2>
       <form id="libForm">
-        <label class="wide">Název<input id="lName" placeholder="Např. Kickbox kondička" required></label>
-        <label>Druh<select id="lType"><option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Regenerace</option><option>Jiné</option></select></label>
-        <label>Délka (min)<input id="lMin" type="number" min="1" max="600" inputmode="numeric" placeholder="45" required></label>
-        <label class="wide">Cviky a postup<textarea id="lEx" placeholder="Rozcvička 10 min&#10;5 kol: 20 kopů, 20 úderů, 10 kliků&#10;Protažení 5 min"></textarea></label>
-        <button class="block wide" type="submit" id="libSave">Uložit do knihovny</button>
+        <label class="wide">Název<input id="lName" placeholder="Např. Thajský box, Jóga, Plavání" required></label>
+        <label>Obvyklá délka (min)<input id="lMin" type="number" min="1" max="600" inputmode="numeric" placeholder="nepovinné"></label>
+        <label class="check"><span>Regenerační</span><input id="lRegen" type="checkbox"></label>
+        <label class="wide">Popis, cviky, postup<textarea id="lEx" placeholder="Nepovinné. Např.:&#10;Rozcvička 10 min&#10;5 kol: 20 kopů, 20 úderů, 10 kliků"></textarea></label>
+        <button class="block wide" type="submit" id="libSave">Přidat druh</button>
         <button class="block ghost wide hidden" type="button" id="libCancel">Zrušit úpravu</button>
       </form>
     </section>
     <section class="stack">
-      <h2>Moje tréninky</h2>
+      <h2>Moje druhy tréninku</h2>
+      <p class="note">Z těchto druhů vybíráš v deníku. Regenerační se počítají do regenerace v týdenním souhrnu.</p>
       <div class="stack" id="libList"></div>
     </section>
   </div>
@@ -307,6 +308,13 @@ let data;
 try { data = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { data = {}; }
 ['goals', 'days', 'trainings', 'records', 'library'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 if (!data.tomb || typeof data.tomb !== 'object') data.tomb = {};
+const DEFAULT_TYPES = [
+  { id: 'ty-kickbox', name: 'Kickbox' }, { id: 'ty-funkcni', name: 'Funkční trénink' }, { id: 'ty-posilovna', name: 'Posilovna' },
+  { id: 'ty-beh', name: 'Běh' }, { id: 'ty-regenerace', name: 'Regenerace', regen: true }, { id: 'ty-jine', name: 'Jiné' }
+];
+// verze 4 měla v knihovně šablony tréninků (s polem type): převést na druhy
+data.library = data.library.map(l => l.type ? (({ type, ...rest }) => Object.assign(rest, type === 'Regenerace' ? { regen: true } : {}))(l) : l);
+if (!data.typesSeeded) { DEFAULT_TYPES.forEach(t => { if (!data.library.some(x => x.id === t.id || x.name === t.name)) data.library.push({ ...t }); }); data.typesSeeded = 1; }
 if (!data.start) { data.start = TK; if (!data.goals.length) data.goals = DEFAULT_GOALS.map(g => ({ ...g })); }
 
 const Q = {
@@ -331,7 +339,7 @@ function dayState(k) {
   if (vals.length && vals.every(Boolean)) return vals.includes('express') ? 'express' : 'full';
   return vals.some(Boolean) ? 'partial' : 'none';
 }
-const hasDemo = () => data.days.some(d => d.demo) || data.trainings.some(t => t.demo) || data.records.some(r => r.demo) || data.library.some(l => l.demo);
+const hasDemo = () => data.days.some(d => d.demo) || data.trainings.some(t => t.demo) || data.records.some(r => r.demo);
 const effStart = () => data.days.filter(d => d.demo).reduce((m, d) => d.id < m ? d.id : m, data.start);
 function compute() {
   const jokers = new Set(), used = {}, start = effStart();
@@ -407,12 +415,20 @@ $('#sickBtn').onclick = () => {
 };
 
 /* ---------- Deník ---------- */
+const typeByName = n => data.library.find(l => l.name === n);
+const isRegen = n => { const t = typeByName(n); return t ? !!t.regen : n === 'Regenerace'; };
+function fillTypeSelect() {
+  const sel = $('#tType'), cur = sel.value;
+  sel.innerHTML = '';
+  data.library.slice().sort((a, b) => a.name.localeCompare(b.name, 'cs')).forEach(l => { const o = el('option', null, l.name); sel.appendChild(o); });
+  if (cur && typeByName(cur)) sel.value = cur;
+}
 const FEEL = { 4: 'výborný', 3: 'dobrý', 2: 'těžký', 1: 'přežil jsem' };
 function renderLog() {
   const wk = weekKey(today);
   const thisW = data.trainings.filter(t => t.date >= wk && t.date <= TK);
   const mins = thisW.reduce((a, t) => a + (+t.min || 0), 0);
-  const regen = thisW.filter(t => t.type === 'Regenerace'), regenMin = regen.reduce((a, t) => a + (+t.min || 0), 0);
+  const regen = thisW.filter(t => isRegen(t.type)), regenMin = regen.reduce((a, t) => a + (+t.min || 0), 0);
   const W = $('#wkStats'); W.innerHTML = '';
   [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden'], [regen.length, (regen.length === 1 ? 'regenerace' : 'regenerací') + ' · ' + regenMin + ' min']].forEach(([n, l]) => {
     const s = el('div', 'stat'); s.append(el('b', null, n), el('span', null, l)); W.appendChild(s);
@@ -424,7 +440,7 @@ function renderLog() {
     const r = el('div', 'entry');
     r.appendChild(el('div', 'when', fmtShort(t.date)));
     const w = el('div', 'what');
-    w.appendChild(el('span', 'tag' + (t.type === 'Kickbox' ? ' k' : t.type === 'Funkční trénink' ? ' f' : t.type === 'Regenerace' ? ' r' : ''), t.type));
+    w.appendChild(el('span', 'tag' + (isRegen(t.type) ? ' r' : ''), t.type));
     w.appendChild(document.createTextNode(t.min + ' min'));
     w.appendChild(el('small', null, 'Pocit: ' + (FEEL[t.feel] || 'dobrý') + (t.note ? ' · ' + t.note : '')));
     const x = el('button', 'danger', 'Smazat');
@@ -434,9 +450,7 @@ function renderLog() {
 }
 $('#addTr').addEventListener('submit', e => {
   e.preventDefault();
-  const lib = e.target.dataset.lib && data.library.find(x => x.id === e.target.dataset.lib && x.name === $('#tNote').value.trim());
-  data.trainings.push(Object.assign({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() }, lib ? { libId: lib.id } : {}));
-  delete e.target.dataset.lib;
+  data.trainings.push({ id: uid(), date: $('#tDate').value || TK, type: $('#tType').value, min: +$('#tMin').value, feel: +$('#tFeel').value, note: $('#tNote').value.trim() });
   $('#tMin').value = ''; $('#tNote').value = ''; $('#tDate').value = TK;
   seed++; quoteOverride = pick(Q.train, seed); save(); render();
 });
@@ -490,49 +504,56 @@ $('#pEx').addEventListener('change', () => {
   if (r) $('#pUnit').value = r.unit;
 });
 
-/* ---------- Knihovna tréninků ---------- */
+/* ---------- Knihovna: druhy tréninku ---------- */
 let libEdit = null;
 function renderLib() {
+  fillTypeSelect();
   const L = $('#libList'); L.innerHTML = '';
   const list = data.library.slice().sort((a, b) => a.name.localeCompare(b.name, 'cs'));
-  if (!list.length) { L.appendChild(el('p', 'note', 'Knihovna je prázdná. Vypiš si svůj první trénink nahoře a příště ho zapíšeš jedním klepnutím.')); return; }
+  if (!list.length) { L.appendChild(el('p', 'note', 'Zatím žádné druhy. Přidej si první nahoře.')); return; }
   list.forEach(l => {
     const c = el('div', 'card lib');
     c.appendChild(el('h3', null, l.name));
-    const used = data.trainings.filter(t => t.libId === l.id).length;
+    const used = data.trainings.filter(t => t.type === l.name).length;
     const m = el('div', 'sub');
-    m.appendChild(el('span', 'tag' + (l.type === 'Kickbox' ? ' k' : l.type === 'Funkční trénink' ? ' f' : l.type === 'Regenerace' ? ' r' : ''), l.type));
-    m.appendChild(document.createTextNode(l.min + ' min' + (used ? ' · zapsáno ' + used + '×' : '')));
+    if (l.regen) m.appendChild(el('span', 'tag r', 'regenerace'));
+    m.appendChild(document.createTextNode([l.min ? l.min + ' min' : '', used ? 'zapsáno ' + used + '×' : 'zatím nezapsáno'].filter(Boolean).join(' · ')));
     c.appendChild(m);
     if (l.ex) c.appendChild(el('div', 'ex', l.ex));
     const a = el('div', 'actions');
+    a.style.marginTop = '10px';
     const go = el('button', 'on', 'Zapsat do deníku'), ed = el('button', null, 'Upravit'), del = el('button', 'danger', 'Smazat');
     go.onclick = () => {
       show('denik');
-      $('#tType').value = l.type; $('#tMin').value = l.min; $('#tNote').value = l.name; $('#tDate').value = TK;
-      $('#addTr').dataset.lib = l.id;
-      $('#tFeel').focus();
+      $('#tType').value = l.name; $('#tMin').value = l.min || ''; $('#tDate').value = TK;
+      (l.min ? $('#tFeel') : $('#tMin')).focus();
     };
     ed.onclick = () => {
       libEdit = l.id;
-      $('#lName').value = l.name; $('#lType').value = l.type; $('#lMin').value = l.min; $('#lEx').value = l.ex || '';
-      $('#libTitle').textContent = 'Upravit trénink'; $('#libSave').textContent = 'Uložit změny'; $('#libCancel').classList.remove('hidden');
+      $('#lName').value = l.name; $('#lMin').value = l.min || ''; $('#lRegen').checked = !!l.regen; $('#lEx').value = l.ex || '';
+      $('#libTitle').textContent = 'Upravit druh'; $('#libSave').textContent = 'Uložit změny'; $('#libCancel').classList.remove('hidden');
       window.scrollTo(0, 0);
     };
-    del.onclick = () => { if (!confirm('Smazat ' + l.name + ' z knihovny? Zápisy v deníku zůstanou.')) return; data.library = data.library.filter(x => x.id !== l.id); if (libEdit === l.id) libReset(); save(); render(); };
+    del.disabled = data.library.length <= 1;
+    del.onclick = () => { if (!confirm('Smazat druh ' + l.name + '? Zápisy v deníku zůstanou.')) return; data.library = data.library.filter(x => x.id !== l.id); if (libEdit === l.id) libReset(); save(); render(); };
     a.append(go, ed, del); c.appendChild(a); L.appendChild(c);
   });
 }
 function libReset() {
   libEdit = null; $('#libForm').reset();
-  $('#libTitle').textContent = 'Nový trénink do knihovny'; $('#libSave').textContent = 'Uložit do knihovny'; $('#libCancel').classList.add('hidden');
+  $('#libTitle').textContent = 'Nový druh tréninku'; $('#libSave').textContent = 'Přidat druh'; $('#libCancel').classList.add('hidden');
 }
 $('#libCancel').onclick = libReset;
 $('#libForm').addEventListener('submit', e => {
   e.preventDefault();
-  const rec = { name: $('#lName').value.trim(), type: $('#lType').value, min: +$('#lMin').value, ex: $('#lEx').value.trim() };
-  if (libEdit) data.library = data.library.map(x => x.id === libEdit ? Object.assign({}, x, rec) : x);
-  else data.library.push(Object.assign({ id: uid() }, rec));
+  const name = $('#lName').value.trim();
+  if (data.library.some(x => x.id !== libEdit && x.name.toLowerCase() === name.toLowerCase())) { alert('Druh ' + name + ' už v knihovně je.'); return; }
+  const rec = { name, min: +$('#lMin').value || 0, regen: $('#lRegen').checked, ex: $('#lEx').value.trim() };
+  if (libEdit) {
+    const old = data.library.find(x => x.id === libEdit);
+    if (old && old.name !== name) data.trainings.forEach(t => { if (t.type === old.name) t.type = name; });   // přejmenování i v deníku
+    data.library = data.library.map(x => x.id === libEdit ? Object.assign({}, x, rec) : x);
+  } else data.library.push(Object.assign({ id: uid() }, rec));
   libReset(); save(); render();
 });
 
@@ -579,10 +600,6 @@ function addDemo() {
     .forEach(([o, type, min, feel, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, feel, note }));
   [['Mrtvý tah', 50, 'kg', 40], ['Mrtvý tah', 55, 'kg', 15], ['Mrtvý tah', 60, 'kg', 4], ['Shyby', 6, '×', 30], ['Shyby', 8, '×', 5], ['Plank', 90, 's', 10]]
     .forEach(([ex, val, unit, o]) => data.records.push({ id: uid(), demo: true, ex, val, unit, date: d(o) }));
-  [['Kickbox kondička', 'Kickbox', 60, 'Švihadlo 10 min\n5 kol na pytli po 3 min: kombinace 1-2-kop\nKliky 3× 15, sedy-lehy 3× 20\nProtažení 10 min'],
-   ['Funkční kruh', 'Funkční trénink', 40, '4 kola, 40 s práce / 20 s pauza:\nkettlebell swing, burpees, výpady, plank, farmer walk'],
-   ['Ranní regenerace', 'Regenerace', 20, 'Válec na záda a stehna 8 min\nKočka-kráva, dítě, holub\nDýchání 3 min']]
-    .forEach(([name, type, min, ex]) => data.library.push({ id: uid(), demo: true, name, type, min, ex }));
   save(); show('dnes'); render();
 }
 function removeDemo() {
@@ -590,7 +607,6 @@ function removeDemo() {
   data.days = data.days.filter(x => !x.demo);
   data.trainings = data.trainings.filter(x => !x.demo);
   data.records = data.records.filter(x => !x.demo);
-  data.library = data.library.filter(x => !x.demo);
   save(); render();
 }
 $('#demo-add').onclick = addDemo;
@@ -621,7 +637,7 @@ $('#import').onchange = async ev => {
     });
     if (inc.start && inc.start < data.start) data.start = inc.start;
     save(); render();
-    alert('Přidáno dnů: ' + cnt.days + ', tréninků: ' + cnt.trainings + ', výkonů: ' + cnt.records + ', cílů: ' + cnt.goals + ', tréninků v knihovně: ' + cnt.library + '.');
+    alert('Přidáno dnů: ' + cnt.days + ', tréninků: ' + cnt.trainings + ', výkonů: ' + cnt.records + ', cílů: ' + cnt.goals + ', druhů tréninku: ' + cnt.library + '.');
   } catch (err) { alert('Import selhal: ' + err.message); }
   ev.target.value = '';
 };
