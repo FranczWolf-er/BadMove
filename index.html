@@ -109,6 +109,7 @@ input,select{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;borde
 .tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px;background:var(--tape-soft);color:var(--ink);margin-right:6px}
 .tag.k{background:var(--tape);color:var(--tape-ink)}
 .tag.f{background:var(--sick-soft)}
+.tag.r{background:transparent;border:1px solid var(--sick)}
 .pr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:baseline}
 .pr .ex{font-weight:700}
 .pr .best{font-family:var(--display);font-weight:400;font-size:28px;font-variant-numeric:tabular-nums;text-align:right}
@@ -177,7 +178,7 @@ nav button.on{color:var(--ink);background:var(--tape-soft)}
       <h2>Zapsat trénink</h2>
       <form id="addTr">
         <label>Druh<select id="tType">
-          <option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Jiné</option>
+          <option>Kickbox</option><option>Funkční trénink</option><option>Posilovna</option><option>Běh</option><option>Regenerace</option><option>Jiné</option>
         </select></label>
         <label>Datum<input id="tDate" type="date" required></label>
         <label>Délka (min)<input id="tMin" type="number" min="1" max="600" inputmode="numeric" placeholder="60" required></label>
@@ -388,9 +389,9 @@ function renderLog() {
   const wk = weekKey(today);
   const thisW = data.trainings.filter(t => t.date >= wk && t.date <= TK);
   const mins = thisW.reduce((a, t) => a + (+t.min || 0), 0);
-  const kb = thisW.filter(t => t.type === 'Kickbox').length;
+  const regen = thisW.filter(t => t.type === 'Regenerace'), regenMin = regen.reduce((a, t) => a + (+t.min || 0), 0);
   const W = $('#wkStats'); W.innerHTML = '';
-  [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden'], [kb, 'kickbox tento týden']].forEach(([n, l]) => {
+  [[thisW.length, plural(thisW.length, 'trénink', 'tréninky', 'tréninků') + ' tento týden'], [mins, 'minut tento týden'], [regen.length, (regen.length === 1 ? 'regenerace' : 'regenerací') + ' · ' + regenMin + ' min']].forEach(([n, l]) => {
     const s = el('div', 'stat'); s.append(el('b', null, n), el('span', null, l)); W.appendChild(s);
   });
   const L = $('#trList'); L.innerHTML = '';
@@ -400,7 +401,7 @@ function renderLog() {
     const r = el('div', 'entry');
     r.appendChild(el('div', 'when', fmtShort(t.date)));
     const w = el('div', 'what');
-    w.appendChild(el('span', 'tag' + (t.type === 'Kickbox' ? ' k' : t.type === 'Funkční trénink' ? ' f' : ''), t.type));
+    w.appendChild(el('span', 'tag' + (t.type === 'Kickbox' ? ' k' : t.type === 'Funkční trénink' ? ' f' : t.type === 'Regenerace' ? ' r' : ''), t.type));
     w.appendChild(document.createTextNode(t.min + ' min'));
     w.appendChild(el('small', null, 'Pocit: ' + (FEEL[t.feel] || 'dobrý') + (t.note ? ' · ' + t.note : '')));
     const x = el('button', 'danger', 'Smazat');
@@ -503,7 +504,7 @@ function addDemo() {
     data.days.push({ id: k, demo: true, goals, ...(t === 's' ? { sick: true } : {}) });
   });
   [[1, 'Kickbox', 90, 4, 'Technika kopů, 5 kol sparingu'], [3, 'Funkční trénink', 60, 3, 'Kettlebell, burpees, farmer walk'], [6, 'Kickbox', 90, 2, 'Kondice na pytli'],
-   [8, 'Funkční trénink', 45, 3, ''], [13, 'Kickbox', 90, 3, 'Lapy ve dvojicích'], [15, 'Posilovna', 60, 4, 'Mrtvý tah, shyby, bench']]
+   [8, 'Funkční trénink', 45, 3, ''], [2, 'Regenerace', 30, 4, 'Jóga a válec'], [7, 'Regenerace', 40, 3, 'Sauna, protažení'], [13, 'Kickbox', 90, 3, 'Lapy ve dvojicích'], [15, 'Posilovna', 60, 4, 'Mrtvý tah, shyby, bench']]
     .forEach(([o, type, min, feel, note]) => data.trainings.push({ id: uid(), demo: true, date: d(o), type, min, feel, note }));
   [['Mrtvý tah', 50, 'kg', 40], ['Mrtvý tah', 55, 'kg', 15], ['Mrtvý tah', 60, 'kg', 4], ['Shyby', 6, '×', 30], ['Shyby', 8, '×', 5], ['Plank', 90, 's', 10]]
     .forEach(([ex, val, unit, o]) => data.records.push({ id: uid(), demo: true, ex, val, unit, date: d(o) }));
