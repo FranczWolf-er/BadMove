@@ -10,6 +10,7 @@
   Hlášky jsou rozdělené podle situace (nic hotovo, rozjeto, splněno, expres, marodka, zapsaný trénink, nový osobák), takže nový trenér znamená jen novou sadu textů.
 - Řízené ranní protažení: cvik po cviku s odpočtem, pípnutím a obrázkem, obrazovka nezhasne, trenér hlásí cviky nahlas (hlasová syntéza) a na konci se cíl sám odškrtne.
 - Odznaky za milníky (série 7, 30, 100 dní, první trénink daného druhu, nový osobák…) s drzým popiskem a oslavou při získání.
+- Evidence váhy: zapisování váhy (třeba ráno po probuzení) s historií a grafem vývoje, nejspíš jako zvláštní položka v sekci Rekordy.
 
 ## Hotovo
 - Úprava zapsaného tréninku (Upravit v historii deníku) a výkonu (klepnutím na pokus v historii rekordu).
